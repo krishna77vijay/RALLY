@@ -916,6 +916,7 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
     <button class="social-tab active" type="button" role="tab" aria-selected="true" data-social-tab="players">Players & profiles</button>
     <button class="social-tab" type="button" role="tab" aria-selected="false" data-social-tab="communities">Communities</button>
     <button class="social-tab" type="button" role="tab" aria-selected="false" data-social-tab="friends">Friends <span id="rallyFriendCount">0</span></button>
+    <button class="social-tab" id="rallyReviewsTab" type="button" role="tab" aria-selected="false" data-social-tab="reviews">Player reviews</button>
   </div>
   <div class="social-sport-rail" aria-label="Filter by sport">
     <button class="social-sport-filter active" type="button" data-social-sport="All">✳️ All sports</button>
@@ -951,6 +952,12 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
     <div class="groups-grid" id="rallyGroupsGrid"></div>
   </div>
   <div class="social-panel" id="socialFriendsPanel" role="tabpanel"><div class="community-callout"><div><strong>Your friends, all in one place.</strong><span>Manage incoming requests and accepted friends here.</span></div><button class="social-text-link" type="button" id="rallyBrowsePlayers">Find players →</button></div><details class="game-invite-dropdown" id="gameInviteDropdown"><summary><span>Game invitations</span><span class="game-invite-count" id="gameInviteCount">0</span><span class="game-invite-chevron" aria-hidden="true">⌄</span></summary><div id="gameInvites" class="game-invites" aria-live="polite"></div></details><div class="people-grid" id="rallyFriendsGrid"></div></div>
+  <div class="social-panel" id="socialReviewsPanel" role="tabpanel" aria-labelledby="rallyReviewsTab">
+    <div class="community-callout"><div><strong>Recognize good teammates.</strong><span>Review players only after you both confirm a game is complete.</span></div></div>
+    <div class="rally-reviews-privacy" role="note">You can review each player once. Skill, attitude, sportsmanship, and reliability appear only in grouped summaries after at least three reviews. Your safety answer and optional note are private to RALLY moderators; this is not an emergency channel and may not be reviewed immediately.</div>
+    <div id="rallyReviewsStatus" class="rally-reviews-status" role="status" aria-live="polite"></div>
+    <div id="rallyReviewTargets" class="rally-review-targets" aria-live="polite"></div>
+  </div>
   <p class="social-storage-note">Friend requests and accepted friendships are saved to your RALLY account. Communities you create are saved in this browser only and are not shared across accounts or devices.</p>
 </section>
 
@@ -1921,6 +1928,7 @@ setInterval(async () => {
 
 <script type="module" src="/src/rally-supabase.js"></script>
 <script type="module" src="/src/rally-auth.js"></script>
+<script type="module" src="/src/rally-reviews.js"></script>
 
 <style id="rally-smooth-carousel-fix">
 /* Single authoritative layout for the RALLY moving sport rail. */
