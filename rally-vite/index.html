@@ -773,7 +773,7 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
         <button class="sport-choice" type="button" data-sport-choice="Football" aria-pressed="false"><span class="choice-mark">⚽</span><strong>Football</strong></button>
         <button class="sport-choice" type="button" data-sport-choice="Badminton" aria-pressed="false"><span class="choice-mark">🏸</span><strong>Badminton</strong></button>
         <button class="sport-choice" type="button" data-sport-choice="Tennis" aria-pressed="false"><span class="choice-mark">🎾</span><strong>Tennis</strong></button>
-        <button class="sport-choice" type="button" data-sport-choice="Pickleball" aria-pressed="false"><span class="choice-mark pickleball-mark" aria-hidden="true">●</span><strong>Pickleball</strong></button>
+        <button class="sport-choice" type="button" data-sport-choice="Pickleball" aria-pressed="false"><span class="choice-mark pickleball-mark" aria-hidden="true"></span><strong>Pickleball</strong></button>
         <button class="sport-choice" type="button" data-sport-choice="Cricket" aria-pressed="false"><span class="choice-mark">🏏</span><strong>Cricket</strong></button>
         <button class="sport-choice" type="button" data-sport-choice="Volleyball" aria-pressed="false"><span class="choice-mark">🏐</span><strong>Volleyball</strong></button>
       </div>
@@ -836,9 +836,24 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
     .rally-social .group-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:13px 0;color:#7996ad;font-size:10px}
     .rally-social .group-actions{display:flex;gap:8px}.rally-social .community-callout{display:flex;justify-content:space-between;align-items:center;gap:18px;margin-bottom:18px;padding:17px 19px;border:1px solid rgba(24,200,239,.17);border-radius:14px;background:radial-gradient(ellipse at top right,rgba(24,200,239,.1),transparent 55%),#091b2d}
     .rally-social .community-callout strong{display:block;color:#eaf6ff;font-size:13px}.rally-social .community-callout span{display:block;color:#829db4;font-size:11px;margin-top:5px;line-height:1.5}
+    .rally-social .community-create-form{margin:0 0 18px;padding:20px;border:1px solid rgba(123,164,198,.2);border-radius:14px;background:#0b2039}
+    .rally-social .community-create-form[hidden]{display:none!important}
+    .rally-social .community-create-form h3{margin:0 0 16px;color:#f1f7ff;font-size:16px}
+    .rally-social .community-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+    .rally-social .community-form-field{display:grid;gap:7px;min-width:0;color:#9cb5c9;font-size:10px;font-weight:800;letter-spacing:.6px}
+    .rally-social .community-form-field input,.rally-social .community-form-field select,.rally-social .community-form-field textarea{width:100%;padding:11px 12px;border:1px solid #2c4b70;border-radius:9px;background:#091b32;color:#f5f8ff;font:500 12px Manrope,sans-serif;letter-spacing:normal}
+    .rally-social .community-form-field textarea{resize:vertical}
+    .rally-social .community-form-field small{color:#829db4;font-size:10px;font-weight:500;letter-spacing:normal;line-height:1.5}
+    .rally-social .community-form-description{grid-column:1/-1}
+    .rally-social .community-form-status{min-height:16px;margin:10px 0 0;color:#ffb6b6;font-size:11px}
+    .rally-social .community-form-actions{display:flex;justify-content:flex-end;gap:9px}
+    .rally-social .community-form-actions button{min-width:120px}
+    .rally-social .community-empty{grid-column:1/-1;padding:26px 20px;border:1px dashed rgba(123,164,198,.24);border-radius:14px;color:#9cb5c9;text-align:center}
+    .rally-social .community-empty strong{display:block;margin-bottom:6px;color:#eaf6ff;font-size:14px}
+    .rally-social .community-empty p{margin:0;font-size:11px;line-height:1.6}
     .rally-social .empty-filter{color:#7996ad;font-size:12px;padding:18px 0}
     @media(max-width:850px){.rally-social .people-grid,.rally-social .groups-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
-    @media(max-width:560px){.rally-social .people-grid,.rally-social .groups-grid{grid-template-columns:1fr}.rally-social .community-callout{align-items:flex-start;flex-direction:column}}
+    @media(max-width:560px){.rally-social .people-grid,.rally-social .groups-grid{grid-template-columns:1fr}.rally-social .community-callout{align-items:flex-start;flex-direction:column}.rally-social .community-form-grid{grid-template-columns:1fr}.rally-social .community-form-description{grid-column:auto}.rally-social .community-form-actions button{flex:1}}
     /* Brighter, compact player directory */
     .rally-social{padding-top:38px;color:#f4faff}
     .rally-social .social-heading h2{color:#fff;text-shadow:0 0 28px rgba(48,207,255,.12)}
@@ -919,11 +934,24 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
     <div class="people-grid" id="rallyPeopleGrid" aria-live="polite"></div>
   </div>
   <div class="social-panel" id="socialCommunitiesPanel" role="tabpanel">
-    <div class="community-callout"><div><strong>Better together.</strong><span>Join a sports community to find regular players, arrange sessions, and take on friendly challenges.</span></div><a href="#games" class="social-text-link">Find a game <span>→</span></a></div>
+    <div class="community-callout"><div><strong>Bring your people together.</strong><span>Create a group around your sport and set its regular meetup. Communities are saved in this browser.</span></div><button class="social-primary-btn" type="button" id="createCommunityToggle" aria-expanded="false" aria-controls="createCommunityForm">Create a community +</button></div>
+    <form class="community-create-form" id="createCommunityForm" hidden>
+      <h3>Create a community</h3>
+      <div class="community-form-grid">
+        <label class="community-form-field"><span>COMMUNITY NAME</span><input name="name" type="text" maxlength="60" required placeholder="e.g. Sunday Tennis Crew"></label>
+        <label class="community-form-field"><span>SPORT</span><select name="sport" required><option value="Basketball">Basketball</option><option value="Football">Football</option><option value="Badminton">Badminton</option><option value="Tennis">Tennis</option><option value="Pickleball">Pickleball</option><option value="Cricket">Cricket</option><option value="Volleyball">Volleyball</option></select></label>
+        <label class="community-form-field"><span>SKILL LEVEL</span><select name="level" required><option>All levels</option><option>Beginner</option><option>Beginner–Intermediate</option><option>Intermediate</option><option>Intermediate–Advanced</option><option>Advanced</option></select></label>
+        <label class="community-form-field"><span>WHEN YOU MEET</span><input name="meet" type="text" maxlength="80" placeholder="e.g. Saturday mornings"></label>
+        <label class="community-form-field"><span>PUBLIC MEETING AREA</span><input name="area" type="text" maxlength="100" required placeholder="e.g. Adyar sports centre"><small>Use a public venue or area, never a home address.</small></label>
+        <label class="community-form-field community-form-description"><span>ABOUT THE COMMUNITY</span><textarea name="desc" maxlength="240" required rows="3" placeholder="Tell players what your community is about."></textarea></label>
+      </div>
+      <p class="community-form-status" id="communityFormStatus" role="status" aria-live="polite"></p>
+      <div class="community-form-actions"><button class="view-profile" type="button" id="cancelCommunityCreate">Cancel</button><button class="social-primary-btn" type="submit">Create community</button></div>
+    </form>
     <div class="groups-grid" id="rallyGroupsGrid"></div>
   </div>
   <div class="social-panel" id="socialFriendsPanel" role="tabpanel"><div class="community-callout"><div><strong>Your friends, all in one place.</strong><span>Manage incoming requests and accepted friends here.</span></div><button class="social-text-link" type="button" id="rallyBrowsePlayers">Find players →</button></div><details class="game-invite-dropdown" id="gameInviteDropdown"><summary><span>Game invitations</span><span class="game-invite-count" id="gameInviteCount">0</span><span class="game-invite-chevron" aria-hidden="true">⌄</span></summary><div id="gameInvites" class="game-invites" aria-live="polite"></div></details><div class="people-grid" id="rallyFriendsGrid"></div></div>
-  <p class="social-storage-note">Friend requests and accepted friendships are saved to your RALLY account. Communities and some social actions remain prototype interactions.</p>
+  <p class="social-storage-note">Friend requests and accepted friendships are saved to your RALLY account. Communities you create are saved in this browser only and are not shared across accounts or devices.</p>
 </section>
 
 
@@ -1905,13 +1933,11 @@ setInterval(async () => {
 .sport-choice .choice-mark{flex:0 0 40px!important;width:40px!important;height:40px!important;font-size:20px!important}
 .sport-choices>.sport-choice.active{border-color:#18c8ef!important;box-shadow:inset 0 -3px #18c8ef!important;background:#123754!important}
 .sport-choice.active strong{color:#f4fbff!important}.sport-choice.active .choice-mark{background:rgba(24,200,239,.18)!important;color:#f4fbff!important}
-.sport-choice .pickleball-mark{display:flex!important;align-items:center!important;justify-content:center!important;border-radius:50%!important;background:#b7f34b!important;color:#17331a!important;font-size:26px!important;line-height:1!important;position:relative!important}
-.sport-choice .pickleball-mark:after{content:"···";position:absolute;color:#17331a;font-size:15px;letter-spacing:1px;transform:rotate(-30deg)}
-.sport-choice.active .pickleball-mark{background:#b7f34b!important;color:#17331a!important}
+.sport-choice .pickleball-mark{font-size:0!important}
+.sport-choice.active .pickleball-mark{background:rgba(24,200,239,.18)!important}
+.sport-choice .pickleball-mark::before,.sporticon.pickleball-icon::before,.pickleball-inline-icon{content:"";display:inline-block;width:25px;height:25px;border-radius:50%;background-color:#b7f34b;background-image:radial-gradient(circle at 30% 30%,#17331a 0 1px,transparent 1.4px),radial-gradient(circle at 65% 38%,#17331a 0 1px,transparent 1.4px),radial-gradient(circle at 45% 68%,#17331a 0 1px,transparent 1.4px)}
 .sporticon.pickleball-icon{position:relative;font-size:0!important}
-.sporticon.pickleball-icon::before,.pickleball-inline-icon{display:inline-block;border-radius:50%;background-color:#b7f34b;background-image:radial-gradient(circle at 30% 30%,#17331a 0 1px,transparent 1.4px),radial-gradient(circle at 65% 38%,#17331a 0 1px,transparent 1.4px),radial-gradient(circle at 45% 68%,#17331a 0 1px,transparent 1.4px)}
-.sporticon.pickleball-icon::before{content:"";width:25px;height:25px}
-.pickleball-inline-icon{width:17px;height:17px;vertical-align:-3px}
+.pickleball-inline-icon{vertical-align:-3px}
 @media(max-width:600px){.sport-filter-row{gap:10px!important}.sport-choices{gap:10px!important}.sport-choices>.sport-choice{flex-basis:174px!important;width:174px!important;min-width:174px!important}.sport-choice{min-height:72px!important;padding:12px 13px!important}.sport-choice strong{font-size:12px!important}}
 </style>
 <script>
@@ -2083,16 +2109,9 @@ window.addEventListener("hashchange",()=>{
   {id:'zoya',name:'Zoya Shah',initials:'ZS',sport:'Volleyball',skill:'Beginner',location:'Adyar',sports:['Volleyball','Basketball'],bio:'New to volleyball and keen to find a regular group to learn with.',games:7,monthGames:2,monthHosted:0,noShows:0,streakWeeks:0,fairPlayVotes:1,hosted:0,xp:95,wins:3,followers:19,avatar:'avatar-orange',trend:-1,availability:'After school'}
  ];
  let people=[];
- const groups=[
-  {id:'pickup-hoops',name:'Pickup Hoops Club',sport:'Basketball',level:'All levels',members:38,meet:'Weekdays · 4:30 PM',area:'School court',desc:'Short, friendly pickup games. Rotate teams often and make sure everyone gets court time.',banner:'',tags:['Pickup games','Friendly','Weekly']},
-  {id:'weekend-football',name:'Weekend Football Crew',sport:'Football',level:'Beginner–Intermediate',members:52,meet:'Saturday · 5:00 PM',area:'Community park',desc:'Small-sided football, casual tactics, and a consistent group to play with every weekend.',banner:'lime',tags:['5-a-side','Weekends','Team play']},
-  {id:'racket-social',name:'Racket Sports Social',sport:'Badminton · Tennis',level:'All levels',members:29,meet:'Sunday · 9:00 AM',area:'Sports centre',desc:'Find a hitting partner, practice skills, and arrange relaxed doubles or singles sessions.',banner:'purple',tags:['Racket sports','Practice','Meet players']},
-  {id:'cricket-circle',name:'Cricket Circle',sport:'Cricket',level:'All levels',members:34,meet:'Sunday · 3:30 PM',area:'Community park',desc:'Casual nets, short matches, and friendly challenges for batters, bowlers, and all-rounders.',banner:'lime',tags:['Nets','Casual matches','All-rounders']},
-  {id:'volley-vibes',name:'Volleyball Vibes',sport:'Volleyball',level:'Beginner–Intermediate',members:21,meet:'Friday · 4:00 PM',area:'School court',desc:'Learn the basics, build teamwork, and get into regular low-pressure games.',banner:'purple',tags:['Learn together','Teamwork','Weekly']},
-  {id:'pickleball-play',name:'Pickleball Playmates',sport:'Pickleball',level:'All levels',members:17,meet:'Saturday · 10:00 AM',area:'Sports centre',desc:'Quick games, easy introductions, and a welcoming space for first-timers and regulars.',banner:'',tags:['Social play','Quick games','All levels']}
- ];
- let state={following:[],friends:[],joined:[],expanded:[],sportFilter:'All',playerQuery:''};
- try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(saved)state={...state,...saved};if(!Array.isArray(state.friends))state.friends=[];}catch(e){}
+ let state={following:[],friends:[],joined:[],expanded:[],communities:[],sportFilter:'All',playerQuery:''};
+ try{const saved=JSON.parse(localStorage.getItem(key)||'null');if(saved)state={...state,...saved};}catch(e){console.error('RALLY social data could not be loaded:',e);}
+ for(const field of ['following','friends','joined','expanded','communities'])if(!Array.isArray(state[field]))state[field]=[];
  const persist=()=>{try{localStorage.setItem(key,JSON.stringify(state));}catch(e){}};
  const esc=v=>String(v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
  let supabase=null,currentUserId=null,friendships=[],socialNeedsAuth=true;
@@ -2137,7 +2156,25 @@ window.addEventListener("hashchange",()=>{
   const section=(title,subtitle,rows,isRequest)=>rows.length?`<section class="friend-list-section"><div class="friend-list-heading"><div><span class="friends-kicker">${isRequest?'PENDING':'CONNECTED'}</span><h3>${title}</h3><p>${subtitle}</p></div><span class="friend-list-count">${rows.length}</span></div><div class="friend-list-grid">${rows.map(row=>card(row,isRequest)).join('')}</div></section>`:'';
   root.innerHTML=`${section('Friend requests','People waiting for your response.',incoming,true)}${section('Your friends','Your accepted RALLY connections.',accepted,false)}${!incoming.length&&!accepted.length?'<div class="friends-empty"><span class="friends-empty-mark" aria-hidden="true">✳</span><div class="friends-empty-copy"><span class="friends-kicker">YOUR RALLY CIRCLE</span><strong>Your crew starts here.</strong><p>Find players you enjoy playing with and send them a friend request.</p></div><button type="button" class="social-primary-btn" id="emptyBrowsePlayers">Find players <span aria-hidden="true">→</span></button></div>':''}`;
  }
- function renderGroups(){const root=$('rallyGroupsGrid');if(!root)return;const visible=groups.filter(g=>state.sportFilter==='All'||g.sport.split(' · ').includes(state.sportFilter));root.innerHTML=visible.map(g=>{const joined=state.joined.includes(g.id);return `<article class="group-card"><div class="group-banner ${g.banner}"></div><div class="group-kicker">${esc(g.sport.toUpperCase())} COMMUNITY</div><h3>${esc(g.name)}</h3><p class="group-desc">${esc(g.desc)}</p><div class="group-tags">${g.tags.map(t=>`<span>${esc(t)}</span>`).join('')}</div><div class="group-foot"><span>◎ ${g.members+(joined?1:0)} members</span><span>${esc(g.level)}</span></div><div class="group-foot"><span>◷ ${esc(g.meet)}</span></div><div class="group-foot"><span>⌖ ${esc(g.area)}</span></div><div class="group-actions"><button class="follow-btn ${joined?'following':''}" data-join-group="${g.id}">${joined?'Joined ✓':'Join community +'}</button><button class="view-profile" data-group-details="${g.id}">Details</button></div><div class="profile-detail" data-group-info="${g.id}" hidden><h4>About this community</h4><p>${esc(g.desc)}</p><div class="community-detail-row"><strong>Regular meetup</strong><span>${esc(g.meet)}</span></div><div class="community-detail-row"><strong>Location</strong><span>${esc(g.area)}</span></div><div class="community-detail-row"><strong>Skill level</strong><span>${esc(g.level)}</span></div><p class="community-demo-note">Sample community details for the prototype.</p></div></article>`;}).join('');if(!visible.length)root.innerHTML='<div class="empty-filter">No communities found for this sport yet. Try another filter.</div>'; }
+ function renderGroups(){
+  const root=$('rallyGroupsGrid');
+  if(!root)return;
+  const visible=state.communities.filter(g=>state.sportFilter==='All'||g.sport===state.sportFilter);
+  if(!visible.length){
+   root.innerHTML=state.communities.length
+    ?`<div class="community-empty"><strong>No ${esc(state.sportFilter)} communities yet</strong><p>Try All sports or create a community for this sport.</p></div>`
+    :'<div class="community-empty"><strong>No communities yet</strong><p>Create one to bring players together.</p></div>';
+   return;
+  }
+  root.innerHTML=visible.map(g=>{
+   const joined=state.joined.includes(g.id);
+   return `<article class="group-card"><div class="group-banner"></div><div class="group-kicker">${esc(g.sport.toUpperCase())} COMMUNITY</div><h3>${esc(g.name)}</h3><p class="group-desc">${esc(g.desc)}</p><div class="group-tags">${(Array.isArray(g.tags)?g.tags:[]).map(t=>`<span>${esc(t)}</span>`).join('')}</div><div class="group-foot"><span>◎ ${(Number(g.members)||0)+(joined?1:0)} members</span><span>${esc(g.level)}</span></div><div class="group-foot"><span>◷ ${esc(g.meet||'To be arranged')}</span></div><div class="group-foot"><span>⌖ ${esc(g.area)}</span></div><div class="group-actions"><button class="follow-btn ${joined?'following':''}" data-join-group="${esc(g.id)}">${joined?'Joined ✓':'Join community +'}</button><button class="view-profile" data-group-details="${esc(g.id)}">Details</button></div><div class="profile-detail" data-group-info="${esc(g.id)}" hidden><h4>About this community</h4><p>${esc(g.desc)}</p><div class="community-detail-row"><strong>Regular meetup</strong><span>${esc(g.meet||'To be arranged')}</span></div><div class="community-detail-row"><strong>Location</strong><span>${esc(g.area)}</span></div><div class="community-detail-row"><strong>Skill level</strong><span>${esc(g.level)}</span></div></div></article>`;
+  }).join('');
+ }
+ const communityForm=$('createCommunityForm');
+ $('createCommunityToggle')?.addEventListener('click',()=>{communityForm.hidden=!communityForm.hidden;$('createCommunityToggle').setAttribute('aria-expanded',String(!communityForm.hidden));if(!communityForm.hidden)communityForm.elements.name.focus();});
+ $('cancelCommunityCreate')?.addEventListener('click',()=>{communityForm.reset();communityForm.hidden=true;$('createCommunityToggle').setAttribute('aria-expanded','false');$('communityFormStatus').textContent='';});
+ communityForm?.addEventListener('submit',event=>{event.preventDefault();const form=new FormData(communityForm);const id=`community-${Date.now()}-${Math.random().toString(36).slice(2,8)}`;const community={id,name:String(form.get('name')||'').trim(),sport:String(form.get('sport')||''),level:String(form.get('level')||''),members:0,meet:String(form.get('meet')||'').trim()||'To be arranged',area:String(form.get('area')||'').trim(),desc:String(form.get('desc')||'').trim(),tags:[String(form.get('sport')||''),String(form.get('level')||'')]};const nextState={...state,communities:[community,...state.communities],joined:[...new Set([...state.joined,id])]};try{localStorage.setItem(key,JSON.stringify(nextState));}catch(error){console.error('RALLY community could not be saved:',error);$('communityFormStatus').textContent='Could not save this community in your browser. Check available storage and try again.';return;}state=nextState;communityForm.reset();communityForm.hidden=true;$('createCommunityToggle').setAttribute('aria-expanded','false');$('communityFormStatus').textContent='';if(state.sportFilter!=='All'&&state.sportFilter!==community.sport){state.sportFilter='All';document.querySelectorAll('[data-social-sport]').forEach(button=>button.classList.toggle('active',button.dataset.socialSport==='All'));}persist();renderGroups();});
  document.querySelectorAll('[data-social-tab]').forEach(btn=>btn.addEventListener('click',()=>activateSocialTab(btn.dataset.socialTab)));
  document.querySelectorAll('[data-social-sport]').forEach(btn=>btn.addEventListener('click',()=>{state.sportFilter=btn.dataset.socialSport;document.querySelectorAll('[data-social-sport]').forEach(b=>b.classList.toggle('active',b===btn));persist();renderPeople();renderGroups();}));
  $('rallyPeopleGrid')?.addEventListener('click',e=>{if(e.target.closest('#socialSignIn')){$('profile')?.click();return;}const add=e.target.closest('[data-add-friend]');const accept=e.target.closest('[data-accept-friend]');const decline=e.target.closest('[data-decline-friend]');const view=e.target.closest('[data-view-player]');if(add)sendFriendRequest(add.dataset.addFriend);if(accept||decline){const targetId=(accept||decline).dataset.acceptFriend||(accept||decline).dataset.declineFriend;const row=friendships.find(item=>otherUserId(item)===targetId);if(row)respondToFriendRequest(row,accept?'accept':'decline');}if(view){const id=view.dataset.viewPlayer;state.expanded=state.expanded.includes(id)?state.expanded.filter(x=>x!==id):[...state.expanded,id];renderPeople();}});
