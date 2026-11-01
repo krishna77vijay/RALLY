@@ -866,9 +866,12 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
     .rally-social .social-sport-rail{display:flex;align-items:center;gap:9px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding:3px 2px 13px;margin:0 0 20px;white-space:nowrap}
     .rally-social .social-sport-rail::-webkit-scrollbar{display:none}
     .rally-social .social-sport-filter{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(147,183,210,.2);background:#0a1c2e;color:#b3c7d8;padding:9px 13px;border-radius:999px;font:750 11px inherit;cursor:pointer;transition:all .16s ease}
+    body.social-view #social .social-sport-rail .pickleball-inline-icon{width:18px;height:18px;background-image:radial-gradient(circle at 30% 30%,#18351d 0 1.1px,transparent 1.4px),radial-gradient(circle at 66% 38%,#18351d 0 1.1px,transparent 1.4px),radial-gradient(circle at 45% 68%,#18351d 0 1.1px,transparent 1.4px)!important}
     .social-football-ball{position:fixed!important;z-index:2147483647!important;left:0;top:0;right:auto;bottom:auto;margin:0!important;padding:0!important;border:0!important;background:transparent!important;overflow:visible!important;display:inline-flex;align-items:center;justify-content:center;line-height:1;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;will-change:transform}
     .social-football-ball-glyph{display:inline-block;transform-origin:center}
     .social-football-ball.is-dragging{cursor:grabbing}
+    .social-volleyball-ball{position:fixed!important;z-index:2147483646!important;left:0;top:0;right:auto;bottom:auto;margin:0!important;padding:0!important;border:0!important;background:transparent!important;overflow:visible!important;display:inline-flex;align-items:center;justify-content:center;line-height:1;touch-action:manipulation;user-select:none;-webkit-user-select:none;will-change:transform}
+    .social-volleyball-ball-glyph{display:inline-block;transform-origin:center}
     .rally-social .social-sport-filter:hover{border-color:#42d9ff;color:#eafaff;background:#102b40}
     .rally-social .social-sport-filter.active{background:#eafaff;color:#062036;border-color:#eafaff;box-shadow:0 4px 14px rgba(234,250,255,.12)}
     .rally-social .community-callout{background:linear-gradient(110deg,rgba(18,57,81,.9),rgba(8,28,46,.95));border-color:rgba(66,217,255,.2);margin-bottom:16px}
@@ -928,9 +931,120 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
     <button class="social-sport-filter" type="button" data-social-sport="Badminton">🏸 Badminton</button>
     <button class="social-sport-filter" type="button" data-social-sport="Tennis">🎾 Tennis</button>
     <button class="social-sport-filter" type="button" data-social-sport="Cricket">🏏 Cricket</button>
-    <button class="social-sport-filter" type="button" data-social-sport="Volleyball">🏐 Volleyball</button>
+    <button class="social-sport-filter" type="button" data-social-sport="Volleyball"><span class="social-volleyball-ball" aria-hidden="true">🏐</span> Volleyball</button>
     <button class="social-sport-filter" type="button" data-social-sport="Pickleball"><span class="pickleball-inline-icon" aria-hidden="true"></span> Pickleball</button>
   </div>
+  <script>
+  (()=>{
+    const ball=document.querySelector('.social-volleyball-ball');
+    const button=ball?.closest('[data-social-sport]');
+    if(!ball||!button)return;
+    const placeholder=document.createElement('span');
+    const originalStyle=getComputedStyle(ball);
+    const glyph=document.createElement('span');
+    glyph.className='social-volleyball-ball-glyph';
+    glyph.textContent=ball.textContent;
+    ball.textContent='';
+    ball.append(glyph);
+    placeholder.className='social-volleyball-ball-placeholder';
+    placeholder.setAttribute('aria-hidden','true');
+    placeholder.textContent=glyph.textContent;
+    placeholder.style.cssText=`display:inline-block;visibility:hidden;font:${originalStyle.font};line-height:${originalStyle.lineHeight};`;
+    ball.replaceWith(placeholder);
+    ball.style.cssText+=`;font:${originalStyle.font};color:${originalStyle.color};`;
+    document.body.append(ball);
+    ball.setAttribute('popover','manual');
+    if(typeof ball.showPopover==='function')ball.showPopover();
+
+    let flight=null,spin=null,active=false,suppressClick=false,originX=0,originY=0,launchPath=[];
+    const syncPosition=()=>{
+      if(active)return;
+      const rect=placeholder.getBoundingClientRect();
+      const visible=rect.width>0&&rect.height>0&&getComputedStyle(placeholder).display!=='none';
+      ball.style.visibility=visible?'visible':'hidden';
+      if(visible){originX=rect.left;originY=rect.top;ball.style.left=`${originX}px`;ball.style.top=`${originY}px`;ball.style.width=`${rect.width}px`;ball.style.height=`${rect.height}px`;}
+    };
+    const schedulePosition=()=>requestAnimationFrame(syncPosition);
+    window.addEventListener('scroll',schedulePosition,true);
+    window.addEventListener('resize',schedulePosition,{passive:true});
+    new MutationObserver(schedulePosition).observe(document.body,{attributes:true,attributeFilter:['class']});
+    schedulePosition();
+
+    const finish=()=>{
+      flight?.cancel();
+      spin?.cancel();
+      flight=null;
+      spin=null;
+      active=false;
+      ball.style.transform='';
+      schedulePosition();
+    };
+    const curvedFrames=segments=>{
+      const frames=[];
+      for(const segment of segments){
+        const [x0,y0]=segment.from,[x1,y1]=segment.control1,[x2,y2]=segment.control2,[x3,y3]=segment.to;
+        const samples=14;
+        for(let i=frames.length?1:0;i<=samples;i++){
+          const t=i/samples,u=1-t;
+          const x=u*u*u*x0+3*u*u*t*x1+3*u*t*t*x2+t*t*t*x3;
+          const y=u*u*u*y0+3*u*u*t*y1+3*u*t*t*y2+t*t*t*y3;
+          const rotation=segment.rotateFrom+(segment.rotateTo-segment.rotateFrom)*t;
+          frames.push({transform:`translate(${x}px,${y}px) rotate(${rotation}deg)`,offset:segment.start+(segment.end-segment.start)*t});
+        }
+      }
+      return frames;
+    };
+    const animateFlightReturn=duration=>{
+      const segment=launchPath[0];
+      const dx=segment.to[0],dy=segment.to[1],length=Math.hypot(dx,dy)||1;
+      const variation=(Math.random()-.5)*34;
+      const offset=[-dy/length*variation,dx/length*variation];
+      const shift=point=>[point[0]+offset[0],point[1]+offset[1]];
+      const reversed=[{
+        from:segment.to,
+        control1:shift(segment.control2),
+        control2:shift(segment.control1),
+        to:[0,0],
+        start:0,
+        end:1,
+        rotateFrom:segment.rotateTo,
+        rotateTo:segment.rotateFrom-360
+      }];
+      flight=ball.animate(curvedFrames(reversed),{duration,easing:'linear'});
+      flight.onfinish=finish;
+    };
+    const launch=()=>{
+      if(active||!placeholder.getBoundingClientRect().width)return;
+      syncPosition();
+      active=true;
+      suppressClick=true;
+      setTimeout(()=>{suppressClick=false;},0);
+      spin=glyph.animate([{transform:'rotate(0deg)'},{transform:'rotate(360deg)'}],{duration:700,easing:'linear',iterations:Infinity});
+
+      const ballWidth=ball.getBoundingClientRect().width;
+      const edgeX=Math.max(24,window.innerWidth-originX-ballWidth-5);
+      const edgeY=-Math.min(145,Math.max(90,originY*.5));
+      const arcHeight=Math.min(190,Math.max(90,window.innerHeight*.38));
+
+      launchPath=[
+        {from:[0,0],control1:[edgeX*.22,-arcHeight],control2:[edgeX*.76,-arcHeight*1.12],to:[edgeX,edgeY],start:0,end:1,rotateFrom:0,rotateTo:720}
+      ];
+      flight=ball.animate(curvedFrames(launchPath),{duration:2800,easing:'linear'});
+      flight.onfinish=()=>animateFlightReturn(3300);
+    };
+    ball.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      if(suppressClick){suppressClick=false;return;}
+      button.click();
+    });
+    ball.addEventListener('dblclick',event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      launch();
+    });
+  })();
+  </script>
   <script>
   (()=>{
     const ball=document.querySelector('.social-football-ball');
