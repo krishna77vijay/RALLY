@@ -19,6 +19,7 @@ if (!supabase) {
       background: #0b203b; color: #f4f8ff;
       font-family: Manrope, system-ui, sans-serif;
       box-shadow: 0 25px 80px #0008;
+      max-height: calc(100vh - 40px); overflow-y: auto;
     }
     #rallyAuthPanel * { box-sizing: border-box; }
     #rallyAuthPanel h2 { margin: 0 0 8px; font-size: 27px; }
@@ -31,6 +32,20 @@ if (!supabase) {
       width: 100%; padding: 12px; border-radius: 10px;
       border: 1px solid #385575; background: #07172d;
       color: white; font: inherit;
+    }
+    #rallyAuthPanel select {
+      width: 100%; padding: 12px; border-radius: 10px;
+      border: 1px solid #385575; background: #07172d;
+      color: white; font: inherit;
+    }
+    #rallyAuthPanel .rally-auth-hint {
+      margin: 6px 0 0; font-size: 11px; line-height: 1.5;
+    }
+    #rallyProfileForm { margin-top: 20px; }
+    #rallyProfileForm h3 { margin: 0 0 8px; }
+    #rallyProfileSave {
+      width: 100%; margin-top: 16px; border: 0;
+      background: #16c6e8; color: #04182c;
     }
     #rallyAuthPanel button {
       cursor: pointer; border-radius: 10px; padding: 12px 15px;
@@ -71,6 +86,24 @@ if (!supabase) {
           <label for="rallyAuthName">Display name</label>
           <input id="rallyAuthName" maxlength="60" autocomplete="nickname">
         </div>
+        <div id="rallyAuthMatchingFields" hidden>
+          <label for="rallyAuthAge">Age group</label>
+          <select id="rallyAuthAge">
+            <option value="" disabled selected>Select your age group</option>
+            <option value="13–15">13–15</option>
+            <option value="15–17">15–17</option>
+            <option value="13–18">13–18</option>
+            <option value="17–19">17–19</option>
+          </select>
+          <label for="rallyAuthGender">Gender</label>
+          <select id="rallyAuthGender">
+            <option value="" disabled selected>Select your gender</option>
+            <option value="girl">Girl</option>
+            <option value="boy">Boy</option>
+            <option value="prefer_not_to_say">Prefer not to say</option>
+          </select>
+          <p class="rally-auth-hint">Your age group and gender appear on your player profile and determine which games you can see. Choose “Prefer not to say” to see games open to all genders.</p>
+        </div>
         <label for="rallyAuthEmail">Email</label>
         <input id="rallyAuthEmail" type="email"
           autocomplete="email" required>
@@ -78,6 +111,26 @@ if (!supabase) {
         <input id="rallyAuthPassword" type="password"
           minlength="8" autocomplete="current-password" required>
         <button id="rallyAuthSubmit" type="submit">Sign in</button>
+      </form>
+      <form id="rallyProfileForm" hidden>
+        <h3>Your matching profile</h3>
+        <p class="rally-auth-hint">These details appear to other players and match you with games.</p>
+        <label for="rallyProfileAge">Age group</label>
+        <select id="rallyProfileAge" required>
+          <option value="" disabled>Select your age group</option>
+          <option value="13–15">13–15</option>
+          <option value="15–17">15–17</option>
+          <option value="13–18">13–18</option>
+          <option value="17–19">17–19</option>
+        </select>
+        <label for="rallyProfileGender">Gender</label>
+        <select id="rallyProfileGender" required>
+          <option value="" disabled>Select your gender</option>
+          <option value="girl">Girl</option>
+          <option value="boy">Boy</option>
+          <option value="prefer_not_to_say">Prefer not to say</option>
+        </select>
+        <button id="rallyProfileSave" type="submit">Save profile</button>
       </form>
       <button id="rallyAuthSwitch" type="button">
         New to RALLY? Create an account
@@ -105,6 +158,9 @@ if (!supabase) {
         : 'Sign in to your player account.'
     $('rallyAuthNameWrap').hidden = mode !== 'signup'
     $('rallyAuthName').required = mode === 'signup'
+    $('rallyAuthMatchingFields').hidden = mode !== 'signup'
+    $('rallyAuthAge').required = mode === 'signup'
+    $('rallyAuthGender').required = mode === 'signup'
     $('rallyAuthPassword').autocomplete =
       mode === 'signup' ? 'new-password' : 'current-password'
     $('rallyAuthSubmit').textContent =
@@ -118,7 +174,7 @@ if (!supabase) {
 
   function openModal() {
     backdrop.classList.add('open')
-    supabase.auth.getSession().then(({ data, error }) => {
+    supabase.auth.getSession().then(async ({ data, error }) => {
       if (error) {
         message(error.message)
         return
@@ -130,10 +186,25 @@ if (!supabase) {
         $('rallyAuthSubtitle').textContent =
           user.user_metadata?.display_name || user.email || 'Player'
         $('rallyAuthForm').hidden = true
+        $('rallyProfileForm').hidden = false
         $('rallyAuthSwitch').textContent = 'Sign out'
         $('rallyAuthSwitch').dataset.action = 'signout'
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('age_group,gender')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (profileError) {
+          message(`Could not load your profile: ${profileError.message}`)
+          return
+        }
+        $('rallyProfileAge').value =
+          profile?.age_group || user.user_metadata?.age_group || ''
+        $('rallyProfileGender').value =
+          profile?.gender || user.user_metadata?.gender || ''
       } else {
         $('rallyAuthForm').hidden = false
+        $('rallyProfileForm').hidden = true
         $('rallyAuthSwitch').dataset.action = 'switch'
         setMode('signin')
       }
@@ -163,6 +234,7 @@ if (!supabase) {
       if (error) return message(error.message)
 
       $('rallyAuthForm').hidden = false
+      $('rallyProfileForm').hidden = true
       $('rallyAuthSwitch').dataset.action = 'switch'
       setMode('signin')
       message('You have signed out.')
@@ -186,11 +258,13 @@ if (!supabase) {
 
       if (mode === 'signup') {
         const displayName = $('rallyAuthName').value.trim()
+        const ageGroup = $('rallyAuthAge').value
+        const gender = $('rallyAuthGender').value
         result = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { display_name: displayName }
+            data: { display_name: displayName, age_group: ageGroup, gender }
           }
         })
 
@@ -212,21 +286,30 @@ if (!supabase) {
       if (user) {
         const displayName =
           user.user_metadata?.display_name || user.email || 'RALLY player'
+        const profile = { id: user.id, display_name: displayName }
+        if (user.user_metadata?.age_group) {
+          profile.age_group = user.user_metadata.age_group
+        }
+        if (user.user_metadata?.gender) {
+          profile.gender = user.user_metadata.gender
+        }
 
         const { error: profileError } = await supabase
           .from('profiles')
-          .upsert({
-            id: user.id,
-            display_name: displayName
-          })
+          .upsert(profile)
 
-        if (profileError) {
-          console.error('Profile save failed:', profileError.message)
-        }
+        if (profileError) throw profileError
 
         $('rallyAuthTitle').textContent = 'Welcome to RALLY!'
         $('rallyAuthSubtitle').textContent = displayName
         $('rallyAuthForm').hidden = true
+        $('rallyProfileForm').hidden = false
+        if (user.user_metadata?.age_group) {
+          $('rallyProfileAge').value = user.user_metadata.age_group
+        }
+        if (user.user_metadata?.gender) {
+          $('rallyProfileGender').value = user.user_metadata.gender
+        }
         $('rallyAuthSwitch').dataset.action = 'signout'
         $('rallyAuthSwitch').textContent = 'Sign out'
         message('You are signed in.')
@@ -239,9 +322,50 @@ if (!supabase) {
     }
   })
 
-  supabase.auth.onAuthStateChange((event, session) => {
+  $('rallyProfileForm').addEventListener('submit', async event => {
+    event.preventDefault()
+    const save = $('rallyProfileSave')
+    save.disabled = true
+    save.textContent = 'Saving…'
+    $('rallyAuthMessage').classList.remove('show')
+
+    try {
+      const { data, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      const user = data.session?.user
+      if (!user) throw new Error('Sign in before saving your profile.')
+
+      const { error } = await supabase
+        .from('profiles')
+        .upsert({
+          id: user.id,
+          display_name: user.user_metadata?.display_name || user.email || 'RALLY player',
+          age_group: $('rallyProfileAge').value,
+          gender: $('rallyProfileGender').value
+        })
+      if (error) throw error
+
+      window.dispatchEvent(new Event('rally-profile-updated'))
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          age_group: $('rallyProfileAge').value,
+          gender: $('rallyProfileGender').value
+        }
+      })
+      if (metadataError) throw metadataError
+      message('Your profile has been saved.')
+    } catch (error) {
+      message(error.message || 'Could not save your profile. Please try again.')
+    } finally {
+      save.disabled = false
+      save.textContent = 'Save profile'
+    }
+  })
+
+  supabase.auth.onAuthStateChange(event => {
     if (event === 'SIGNED_OUT') {
       $('rallyAuthForm').hidden = false
+      $('rallyProfileForm').hidden = true
       $('rallyAuthSwitch').dataset.action = 'switch'
       setMode('signin')
     }
