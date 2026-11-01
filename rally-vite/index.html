@@ -866,6 +866,9 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
     .rally-social .social-sport-rail{display:flex;align-items:center;gap:9px;overflow-x:auto;overscroll-behavior-x:contain;scrollbar-width:none;-ms-overflow-style:none;padding:3px 2px 13px;margin:0 0 20px;white-space:nowrap}
     .rally-social .social-sport-rail::-webkit-scrollbar{display:none}
     .rally-social .social-sport-filter{flex:0 0 auto;display:inline-flex;align-items:center;gap:7px;border:1px solid rgba(147,183,210,.2);background:#0a1c2e;color:#b3c7d8;padding:9px 13px;border-radius:999px;font:750 11px inherit;cursor:pointer;transition:all .16s ease}
+    .social-football-ball{position:fixed!important;z-index:2147483647!important;left:0;top:0;right:auto;bottom:auto;margin:0!important;padding:0!important;border:0!important;background:transparent!important;overflow:visible!important;display:inline-flex;align-items:center;justify-content:center;line-height:1;cursor:grab;touch-action:none;user-select:none;-webkit-user-select:none;will-change:transform}
+    .social-football-ball-glyph{display:inline-block;transform-origin:center}
+    .social-football-ball.is-dragging{cursor:grabbing}
     .rally-social .social-sport-filter:hover{border-color:#42d9ff;color:#eafaff;background:#102b40}
     .rally-social .social-sport-filter.active{background:#eafaff;color:#062036;border-color:#eafaff;box-shadow:0 4px 14px rgba(234,250,255,.12)}
     .rally-social .community-callout{background:linear-gradient(110deg,rgba(18,57,81,.9),rgba(8,28,46,.95));border-color:rgba(66,217,255,.2);margin-bottom:16px}
@@ -921,13 +924,138 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
   <div class="social-sport-rail" aria-label="Filter by sport">
     <button class="social-sport-filter active" type="button" data-social-sport="All">✳️ All sports</button>
     <button class="social-sport-filter" type="button" data-social-sport="Basketball"><span class="social-basketball-target" aria-hidden="true">🏀</span> Basketball</button>
-    <button class="social-sport-filter" type="button" data-social-sport="Football">⚽ Football</button>
+    <button class="social-sport-filter" type="button" data-social-sport="Football"><span class="social-football-ball" aria-hidden="true">⚽</span> Football</button>
     <button class="social-sport-filter" type="button" data-social-sport="Badminton">🏸 Badminton</button>
     <button class="social-sport-filter" type="button" data-social-sport="Tennis">🎾 Tennis</button>
     <button class="social-sport-filter" type="button" data-social-sport="Cricket">🏏 Cricket</button>
     <button class="social-sport-filter" type="button" data-social-sport="Volleyball">🏐 Volleyball</button>
-    <button class="social-sport-filter" type="button" data-social-sport="Pickleball">🟢 Pickleball</button>
+    <button class="social-sport-filter" type="button" data-social-sport="Pickleball"><span class="pickleball-inline-icon" aria-hidden="true"></span> Pickleball</button>
   </div>
+  <script>
+  (()=>{
+    const ball=document.querySelector('.social-football-ball');
+    const button=ball?.closest('[data-social-sport]');
+    if(!ball||!button)return;
+    const placeholder=document.createElement('span');
+    const originalRect=ball.getBoundingClientRect();
+    const originalStyle=getComputedStyle(ball);
+    const glyph=document.createElement('span');
+    glyph.className='social-football-ball-glyph';
+    glyph.textContent=ball.textContent;
+    ball.textContent='';
+    ball.append(glyph);
+    placeholder.className='social-football-ball-placeholder';
+    placeholder.setAttribute('aria-hidden','true');
+    placeholder.textContent=glyph.textContent;
+    placeholder.style.cssText=`display:inline-block;flex:0 0 auto;visibility:hidden;font:${originalStyle.font};line-height:${originalStyle.lineHeight};`;
+    ball.replaceWith(placeholder);
+    ball.style.cssText+=`;font:${originalStyle.font};color:${originalStyle.color};`;
+    document.body.append(ball);
+    ball.setAttribute('popover','manual');
+    if(typeof ball.showPopover==='function')ball.showPopover();
+    let pointerId=null,startX=0,startY=0,pullX=0,pullY=0,dragged=false,suppressClick=false,flight=null,launch=null,spin=null;
+    const syncPosition=()=>{
+      if(pointerId!==null||launch||flight)return;
+      const rect=placeholder.getBoundingClientRect();
+      const visible=rect.width>0&&rect.height>0&&getComputedStyle(placeholder).display!=='none';
+      ball.style.visibility=visible?'visible':'hidden';
+      if(visible){ball.style.left=`${rect.left}px`;ball.style.top=`${rect.top}px`;ball.style.width=`${rect.width}px`;ball.style.height=`${rect.height}px`;}
+    };
+    const schedulePosition=()=>requestAnimationFrame(syncPosition);
+    window.addEventListener('scroll',schedulePosition,true);
+    window.addEventListener('resize',schedulePosition,{passive:true});
+    new MutationObserver(schedulePosition).observe(document.body,{attributes:true,attributeFilter:['class']});
+    schedulePosition();
+    ball.addEventListener('click',event=>{
+      event.preventDefault();
+      event.stopPropagation();
+      if(suppressClick){suppressClick=false;return;}
+      button.click();
+    });
+    ball.addEventListener('pointerdown',event=>{
+      if(!event.isPrimary||event.button!==0)return;
+      launch?.cancel();
+      flight?.cancel();
+      spin?.cancel();
+      launch=null;
+      flight=null;
+      spin=null;
+      ball.style.transform='';
+      syncPosition();
+      pointerId=event.pointerId;
+      startX=event.clientX;
+      startY=event.clientY;
+      pullX=0;
+      pullY=0;
+      dragged=false;
+      ball.classList.add('is-dragging');
+      ball.setPointerCapture(pointerId);
+    });
+    ball.addEventListener('pointermove',event=>{
+      if(event.pointerId!==pointerId)return;
+      const deltaX=event.clientX-startX;
+      const deltaY=event.clientY-startY;
+      const distance=Math.hypot(deltaX,deltaY);
+      if(distance>6)dragged=true;
+      if(!dragged)return;
+      event.preventDefault();
+      const pullScale=Math.min(1,120/distance);
+      pullX=deltaX*pullScale;
+      pullY=deltaY*pullScale;
+      ball.style.transform=`translate(${pullX}px,${pullY}px)`;
+    });
+    const release=event=>{
+      if(event.pointerId!==pointerId)return;
+      pointerId=null;
+      ball.classList.remove('is-dragging');
+      if(!dragged){
+        ball.style.transform='';
+        schedulePosition();
+        return;
+      }
+      event.preventDefault();
+      suppressClick=true;
+      setTimeout(()=>{suppressClick=false;},0);
+      if(event.type==='pointerup'&&!window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+        const targetX=pullX* -4;
+        const targetY=pullY* -4;
+        const targetTransform=`translate(${targetX}px,${targetY}px) rotate(540deg)`;
+        spin=glyph.animate(
+          [{transform:'rotate(0deg)'},{transform:'rotate(360deg)'}],
+          {duration:400,easing:'linear',iterations:Infinity}
+        );
+        launch=ball.animate([
+          {transform:`translate(${pullX}px,${pullY}px) rotate(0deg)`},
+          {transform:targetTransform}
+        ],{duration:360,easing:'cubic-bezier(.22,1,.36,1)'});
+        launch.onfinish=()=>{
+          flight=ball.animate([
+            {transform:targetTransform},
+            {transform:'translate(0,0) rotate(720deg)'}
+          ],{duration:1100,easing:'cubic-bezier(.4,0,.2,1)'});
+          flight.onfinish=()=>{
+            launch?.cancel();
+            flight?.cancel();
+            spin?.cancel();
+            ball.style.transform='';
+            launch=null;
+            flight=null;
+            spin=null;
+            schedulePosition();
+          };
+        };
+      }else{
+        ball.style.transform='';
+        schedulePosition();
+      }
+      dragged=false;
+      pullX=0;
+      pullY=0;
+    };
+    ball.addEventListener('pointerup',release);
+    ball.addEventListener('pointercancel',release);
+  })();
+  </script>
   <div class="social-panel active" id="socialPlayersPanel" role="tabpanel">
     <div class="community-callout"><div><strong>Find players who match your game.</strong><span>Search player profiles and send friend requests to build your sports network.</span></div><a href="#games" class="social-text-link">Discover games <span>→</span></a></div>
     <label class="player-search" for="rallyPlayerSearch"><span aria-hidden="true">⌕</span><input id="rallyPlayerSearch" type="search" placeholder="Search by player name…" autocomplete="off"><kbd>LIVE SEARCH</kbd></label>
