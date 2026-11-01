@@ -997,7 +997,7 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
         <label class="field"><span>LOCATION / VENUE</span><input id="newVenue" type="text" required maxlength="160" autocomplete="street-address" aria-describedby="createVenuePrivacyHint" placeholder="e.g. Riverside Community Sports Centre"><small class="field-hint" id="createVenuePrivacyHint">Use a public venue. This location is shown to players; never enter your home address or private contact details.</small></label>
       </div>
       <label class="field"><span>PLAYER SPOTS (HOST NOT COUNTED)</span><select id="newSpots"><option value="1">1 spot</option><option value="2" selected>2 spots</option><option value="3">3 spots</option><option value="4">4 spots</option><option value="5">5 spots</option><option value="6">6 spots</option><option value="8">8 spots</option><option value="10">10 spots</option></select></label>
-      <label class="field"><span>WHO CAN JOIN?</span><select id="newVisibility"><option value="public">Anyone on RALLY</option><option value="friends">Your friends only</option></select><small class="field-hint">Friends-only games are visible and joinable only by people you have accepted as friends.</small></label>
+      <label class="field"><span>WHO CAN JOIN?</span><select id="newVisibility" aria-describedby="newVisibilityHint"><option value="public">Anyone on RALLY</option><option value="friends">Your friends only</option><option value="invitees">Only friends I invite</option></select><small class="field-hint" id="newVisibilityHint">Anyone can find and join this game.</small></label>
       <label class="field"><span>AGE GROUP</span><select id="newAge" required><option value="13–15">13–15</option><option value="15–17">15–17</option><option value="13–18">13–18</option><option value="17–19">17–19</option></select></label>
       <label class="field"><span>GAME NOTES (OPTIONAL)</span><input id="newDesc" maxlength="180" placeholder="What should players know?"></label>
       <div class="mactions"><button type="button" class="secondary" id="cancelCreate">Cancel</button><button type="submit" class="primary">Publish game</button></div>
@@ -1335,7 +1335,7 @@ function openGame(id){
     ["SKILL LEVEL",escapeHtml(active.skill)],
     ["SPOTS LEFT",String(Math.max(0,Number(active.spots)||0))],
     ["AGE GROUP",escapeHtml(active.age)],
-    ["WHO CAN JOIN",active.visibility==="friends"?"Host’s friends only":"Anyone on RALLY"]
+    ["WHO CAN JOIN",active.visibility==="invitees"?"Only invited friends":active.visibility==="friends"?"Host’s friends only":"Anyone on RALLY"]
   ];
   $("mdetails").innerHTML=detailItems.map(([label,value])=>`<div class="game-detail-tile"><span>${label}</span><strong>${value}</strong></div>`).join("");
   const hostName=escapeHtml(active.host||"RALLY player");
@@ -1590,11 +1590,21 @@ function prepareCreateDateTime(){
     ? toLocalInput(minDate).slice(11,16)
     : "";
 }
+function updateGameVisibilityHint(){
+  const hint=$("newVisibilityHint");
+  if(!hint)return;
+  hint.textContent=$("newVisibility").value==="invitees"
+    ?"Only friends you invite can see or join this game. Publish it, then invite friends from the game details."
+    :$("newVisibility").value==="friends"
+      ?"Only your accepted friends can see and join this game."
+      :"Anyone can find and join this game.";
+}
 function openCreate(){
   prepareCreateDateTime();
   $("createBackdrop").classList.remove("show");
   $("createStatus").classList.remove("show");
   $("createStatus").textContent="";
+  updateGameVisibilityHint();
   document.querySelector('[data-rally-route="createGame"]').click();
 }
 function closeCreate(){
@@ -1606,6 +1616,7 @@ $("openCreate").onclick=openCreate;
 $("navCreate").onclick=e=>e.preventDefault();
 $("closeCreate").onclick=closeCreate;
 $("cancelCreate").onclick=closeCreate;
+$("newVisibility").addEventListener("change",updateGameVisibilityHint);
 $("newDate").addEventListener("change", () => {
   const now = new Date();
   const minDate = new Date(now.getTime() + 5 * 60 * 1000);
@@ -1651,8 +1662,8 @@ $("createForm").addEventListener("submit", async e => {
   const desc = $("newDesc").value.trim();
   const visibility = $("newVisibility").value;
 
-  if (visibility === "friends" && !rallySupportsFriendsOnlyGames) {
-    status.textContent = "Friends-only games aren't available yet. Apply the friends-only games database migration, then refresh RALLY.";
+  if ((visibility === "friends" || visibility === "invitees") && !rallySupportsFriendsOnlyGames) {
+    status.textContent = "Private games aren't available yet. Apply the friends-only games database migration, then refresh RALLY.";
     status.classList.add("show");
     return;
   }
@@ -1743,7 +1754,7 @@ $("createForm").addEventListener("submit", async e => {
       initials: "YOU",
       age,
       desc: savedGame.description || desc || "Game details added by the organizer.",
-      visibility: savedGame.visibility === "friends" ? "friends" : "public",
+      visibility: savedGame.visibility === "invitees" ? "invitees" : savedGame.visibility === "friends" ? "friends" : "public",
       databaseGame: true
     };
 
@@ -1754,6 +1765,7 @@ $("createForm").addEventListener("submit", async e => {
     status.textContent =
       "Game saved to RALLY! It is now stored in your database.";
     status.classList.add("show");
+    updateGameVisibilityHint();
 
     setTimeout(() => {
       closeCreate();
@@ -1768,6 +1780,8 @@ $("createForm").addEventListener("submit", async e => {
 
     status.textContent = error?.code === "23514" && /games_sport_check/i.test(error.message || "")
       ? "Couldn't save the game: this sport isn't enabled in the database yet. Apply the expand_game_sports migration in Supabase, then try again."
+      : error?.code === "23514" && /games_visibility_check/i.test(error.message || "")
+        ? "Couldn't save the game: apply the invitees-only games migration in Supabase, then try again."
       : "Couldn't save the game: " + (error.message || "Please try again.");
     status.classList.add("show");
   } finally {
@@ -1892,7 +1906,7 @@ function mapDatabaseGame(row, currentUserId, hostNames = new Map()) {
     initials: hostInitials,
     age: row.age_group || "Age group to be confirmed",
     desc: row.description || "Game details added by the organizer.",
-    visibility: row.visibility === "friends" ? "friends" : "public",
+    visibility: row.visibility === "invitees" ? "invitees" : row.visibility === "friends" ? "friends" : "public",
     databaseGame: true
   };
 }
@@ -1944,13 +1958,15 @@ async function loadSavedGames() {
     if (error?.code === "42703" && /games\.visibility/i.test(error.message || "")) {
       console.warn("RALLY: games.visibility is missing; loading public games using the legacy schema. Apply the friends-only games migration to enable friends-only games.");
       rallySupportsFriendsOnlyGames = false;
-      const visibilityOption = $("newVisibility")?.querySelector('option[value="friends"]');
-      if (visibilityOption) {
-        visibilityOption.disabled = true;
-        visibilityOption.textContent = "Your friends only (database setup required)";
+      const visibilityOptions = [...($("newVisibility")?.querySelectorAll('option[value="friends"],option[value="invitees"]') || [])];
+      for (const option of visibilityOptions) {
+        option.disabled = true;
+        option.textContent = option.value === "invitees"
+          ? "Only friends I invite (database setup required)"
+          : "Your friends only (database setup required)";
       }
       const visibilityHint = $("newVisibility")?.parentElement?.querySelector(".field-hint");
-      if (visibilityHint) visibilityHint.textContent = "Friends-only games need the database migration. Public games remain available.";
+      if (visibilityHint) visibilityHint.textContent = "Private games need the database migration. Public games remain available.";
       if ($("newVisibility")) $("newVisibility").value = "public";
 
       ({ data, error } = await supabase
@@ -1960,13 +1976,12 @@ async function loadSavedGames() {
         .order("starts_at", { ascending: true }));
     } else {
       rallySupportsFriendsOnlyGames = !error;
-      const visibilityOption = $("newVisibility")?.querySelector('option[value="friends"]');
-      if (visibilityOption) {
-        visibilityOption.disabled = false;
-        visibilityOption.textContent = "Your friends only";
+      const visibilityOptions = [...($("newVisibility")?.querySelectorAll('option[value="friends"],option[value="invitees"]') || [])];
+      for (const option of visibilityOptions) {
+        option.disabled = false;
+        option.textContent = option.value === "invitees" ? "Only friends I invite" : "Your friends only";
       }
-      const visibilityHint = $("newVisibility")?.parentElement?.querySelector(".field-hint");
-      if (visibilityHint) visibilityHint.textContent = "Friends-only games are visible and joinable only by people you have accepted as friends.";
+      updateGameVisibilityHint();
     }
 
     if (error) throw error;
