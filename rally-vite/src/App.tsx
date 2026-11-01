@@ -601,7 +601,7 @@ function App() {
                   <label htmlFor="new-spots">Open spots</label>
                   <select id="new-spots" value={newGame.spots}
                     onChange={(event) => setNewGame({ ...newGame, spots: event.target.value })}>
-                    {['1', '2', '3', '4', '5', '6', '8', '10', '12', '16', '20'].map((item) => (
+                    {['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'].map((item) => (
                       <option key={item} value={item}>{item} spots</option>
                     ))}
                   </select>
