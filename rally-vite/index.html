@@ -1014,7 +1014,7 @@ const games=[
 {id:3,sport:"Badminton",icon:"🏸",title:"Beginner badminton rally",skill:"Beginner",when:"Saturday · 9:00 AM",area:"Sports centre",venue:"Indoor community sports centre",spots:0,host:"Jamie K.",initials:"JK",age:"Age group to be confirmed",desc:"Relaxed doubles practice. Equipment availability needs confirmation."},
 {id:4,sport:"Tennis",icon:"🎾",title:"Intermediate court session",skill:"Intermediate",when:"Saturday · 9:00 AM",area:"Sports centre",venue:"Public sports centre court",spots:2,host:"Taylor P.",unavailable:true,initials:"TP",age:"Age group to be confirmed",desc:"Practice rallies and short sets. Confirm court booking before attending."},
 {id:5,sport:"Basketball",icon:"🏀",title:"Skills and shooting practice",skill:"Advanced",when:"Tomorrow · 4:30 PM",area:"School court",venue:"Main school sports court",spots:4,host:"Jordan L.",initials:"JL",age:"Teen group (sample)",desc:"Practice shooting, passing, and short scrimmages in a supportive setting."}
-];let requests={},active=null,viewState="default",currentUserId=null,joinedGameIds=new Set(),joiningGameIds=new Set(),rallySupportsFriendsOnlyGames=true,rallyInviteRpcAvailable=true,rallyInviteNotice="",gameChatRefreshTimer=null,gameChatRequestToken=0;const $=id=>document.getElementById(id);
+];let requests={},active=null,viewState="default",currentUserId=null,joinedGameIds=new Set(),joiningGameIds=new Set(),rallySupportsFriendsOnlyGames=true,rallyInviteRpcAvailable=true,rallyInviteNotice="",gameChatRefreshTimer=null,gameChatRequestToken=0;let gameCompletionRefreshTimer=null,gameCompletionCountdownTimer=null,gameCompletionRequestInProgress=false,gameCompletionStatusFailed=false,gameCompletionState=null;const $=id=>document.getElementById(id);
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));}
 let rallyKnownGameIds = null;
 function rallyNotify(message, kind="success") {
@@ -1110,9 +1110,168 @@ async function loadGameChat(gameId,requestToken=gameChatRequestToken){
  root.innerHTML=messages.length?messages.map(message=>`<article class="game-chat-message ${message.sender_id===currentUserId?"mine":""}"><strong>${escapeHtml(message.sender_name||"RALLY player")}</strong><p>${escapeHtml(message.message)}</p><time>${escapeHtml(new Date(message.created_at).toLocaleString(undefined,{month:"short",day:"numeric",hour:"numeric",minute:"2-digit"}))}</time></article>`).join(""):'<p class="game-chat-empty">No messages yet. Say hello to your game crew.</p>';
  root.scrollTop=root.scrollHeight;
 }
+function ensureGameCompletionPanel(){
+  let panel=$("gameCompletionPanel");
+  if(panel)return panel;
+  panel=document.createElement("section");
+  panel.id="gameCompletionPanel";
+  panel.className="game-collab-panel";
+  panel.hidden=true;
+  const heading=document.createElement("div");
+  heading.className="game-collab-heading";
+  const titleWrap=document.createElement("div");
+  const kicker=document.createElement("span");
+  kicker.className="game-lineup-kicker";
+  kicker.textContent="MATCH CHECK-IN";
+  const title=document.createElement("h3");
+  title.textContent="Confirm the match";
+  titleWrap.append(kicker,title);
+  heading.append(titleWrap);
+  const message=document.createElement("p");
+  message.id="gameCompletionStatus";
+  message.className="game-collab-copy";
+  message.setAttribute("role","status");
+  message.setAttribute("aria-live","polite");
+  const button=document.createElement("button");
+  button.id="completeGameButton";
+  button.type="button";
+  button.className="primary";
+  button.textContent="Complete a match";
+  button.disabled=true;
+  panel.append(heading,message,button);
+  const modal=document.querySelector(".game-details-modal");
+  const footer=modal?.querySelector(".game-details-footer");
+  if(!footer)throw new Error("The game completion panel could not be added to the game details.");
+  footer.before(panel);
+  button.addEventListener("click",confirmGameCompletion);
+  return panel;
+}
+function updateGameCompletionCountdown(){
+  const button=$("completeGameButton"),message=$("gameCompletionStatus");
+  if(!button||!message)return;
+  if(!gameCompletionState){
+    button.disabled=true;
+    return;
+  }
+  if(gameCompletionStatusFailed){
+    button.disabled=true;
+    return;
+  }
+  if(gameCompletionState.youConfirmed){
+    button.disabled=true;
+    message.textContent=`You confirmed this match (${gameCompletionState.confirmedCount} of ${gameCompletionState.requiredCount} players).`;
+    return;
+  }
+  const startTime=new Date(active?.startsAt||"").getTime();
+  if(!Number.isFinite(startTime)){
+    button.disabled=true;
+    message.textContent="The scheduled start time is unavailable. Refresh and try again.";
+    return;
+  }
+  const remaining=startTime+20*60*1000-Date.now();
+  if(remaining>0){
+    button.disabled=true;
+    const totalSeconds=Math.ceil(remaining/1000);
+    const minutes=Math.floor(totalSeconds/60);
+    const seconds=String(totalSeconds%60).padStart(2,"0");
+    message.textContent=`Available in ${minutes}:${seconds}. You can confirm the match 20 minutes after its scheduled start.`;
+    return;
+  }
+  button.disabled=gameCompletionRequestInProgress;
+  message.textContent=`${gameCompletionState.confirmedCount} of ${gameCompletionState.requiredCount} players have confirmed.`;
+}
+async function refreshGameCompletionStatus(gameId){
+  if(!active?.databaseGame||String(active.id)!==String(gameId))return;
+  const supabase=window.rallySupabase;
+  if(!supabase)throw new Error("RALLY connection is unavailable. Refresh and try again.");
+  const {data,error}=await supabase.rpc("get_game_completion_status",{p_game_id:String(gameId)});
+  if(error)throw error;
+  if(!active||String(active.id)!==String(gameId))return;
+  gameCompletionState={
+    youConfirmed:data?.you_confirmed===true,
+    confirmedCount:Number(data?.confirmed_count)||0,
+    requiredCount:Number(data?.required_count)||0
+  };
+  gameCompletionStatusFailed=false;
+  $("gameCompletionStatus").classList.remove("error");
+  updateGameCompletionCountdown();
+}
+async function loadGameCompletionStatus(gameId){
+  const panel=ensureGameCompletionPanel();
+  panel.hidden=false;
+  $("gameCompletionStatus").classList.remove("error");
+  gameCompletionStatusFailed=true;
+  $("gameCompletionStatus").textContent="Loading match confirmations…";
+  $("completeGameButton").disabled=true;
+  try{
+    await refreshGameCompletionStatus(gameId);
+  }catch(error){
+    if(!active||String(active.id)!==String(gameId))return;
+    console.error("RALLY game completion status could not load:",error);
+    $("gameCompletionStatus").textContent=error?.code==="42883"||error?.code==="PGRST202"
+      ?"Match completion needs the game completion migration applied in Supabase."
+      :error.message||"Could not load match confirmations. Please try again.";
+    $("gameCompletionStatus").classList.add("error");
+    return;
+  }
+  if(!active||String(active.id)!==String(gameId))return;
+  $("gameCompletionStatus").classList.remove("error");
+  if(gameCompletionCountdownTimer)clearInterval(gameCompletionCountdownTimer);
+  if(gameCompletionRefreshTimer)clearInterval(gameCompletionRefreshTimer);
+  gameCompletionCountdownTimer=setInterval(updateGameCompletionCountdown,1000);
+  gameCompletionRefreshTimer=setInterval(()=>{
+    refreshGameCompletionStatus(gameId).catch(error=>{
+      console.error("RALLY game completion status refresh failed:",error);
+      if(active&&String(active.id)===String(gameId)){
+        gameCompletionStatusFailed=true;
+        $("gameCompletionStatus").textContent=error.message||"Could not refresh match confirmations.";
+        $("gameCompletionStatus").classList.add("error");
+        $("completeGameButton").disabled=true;
+      }
+    });
+  },15000);
+}
+async function confirmGameCompletion(){
+  if(!active?.databaseGame||gameCompletionRequestInProgress||!gameCompletionState)return;
+  const gameId=String(active.id),gameTitle=active.title;
+  const button=$("completeGameButton"),message=$("gameCompletionStatus");
+  if(button.disabled)return;
+  gameCompletionRequestInProgress=true;
+  button.disabled=true;
+  button.textContent="Confirming…";
+  try{
+    const supabase=window.rallySupabase;
+    if(!supabase)throw new Error("RALLY connection is unavailable. Refresh and try again.");
+    const {data,error}=await supabase.rpc("confirm_rally_game_completed",{p_game_id:gameId});
+    if(error)throw error;
+    if(data?.completed===true){
+      rallyNotify(`“${gameTitle}” is complete. Everyone confirmed.`);
+      close();
+      await loadSavedGames();
+      return;
+    }
+    await refreshGameCompletionStatus(gameId);
+    message.textContent=`Your confirmation is saved (${gameCompletionState.confirmedCount} of ${gameCompletionState.requiredCount} players).`;
+    rallyNotify("Your match confirmation was saved.");
+  }catch(error){
+    console.error("RALLY game completion confirmation failed:",error);
+    gameCompletionStatusFailed=true;
+    message.textContent=error.message||"Could not confirm this match. Please try again.";
+    message.classList.add("error");
+  }finally{
+    gameCompletionRequestInProgress=false;
+    button.textContent="Complete a match";
+    updateGameCompletionCountdown();
+  }
+}
 async function loadGameCollaboration(gameId){
  const invitePanel=$("gameInvitePanel"),chatPanel=$("gameChatPanel"),supabase=window.rallySupabase;
  if(gameChatRefreshTimer){clearInterval(gameChatRefreshTimer);gameChatRefreshTimer=null;}
+ if(gameCompletionRefreshTimer){clearInterval(gameCompletionRefreshTimer);gameCompletionRefreshTimer=null;}
+ if(gameCompletionCountdownTimer){clearInterval(gameCompletionCountdownTimer);gameCompletionCountdownTimer=null;}
+ gameCompletionState=null;
+ gameCompletionStatusFailed=false;
+ ensureGameCompletionPanel().hidden=true;
  const requestToken=++gameChatRequestToken;
  invitePanel.hidden=true;chatPanel.hidden=true;
  invitePanel.innerHTML="";
@@ -1126,6 +1285,7 @@ async function loadGameCollaboration(gameId){
    currentUserId=signedInUserId;
    const isHost=active.canDelete||active.hostId===signedInUserId;
    const joined=joinedGameIds.has(String(gameId));
+   if(isHost||joined)await loadGameCompletionStatus(gameId);
    const {data:gameInvites,error:inviteError}=await supabase.rpc("get_rally_game_invites",{p_game_id:String(gameId)});
    if(inviteError)throw inviteError;
    const ownInvite=(gameInvites||[]).find(invite=>invite.invitee_id===signedInUserId);
@@ -1211,7 +1371,7 @@ function updateGameDetailsAvailability(){
     ?"You’ve joined this game. The roster will update as other players join."
     :"Join the game to take one of the open spots.";
 }
-function close(){ $("backdrop").classList.remove("show");gameChatRequestToken++;if(gameChatRefreshTimer){clearInterval(gameChatRefreshTimer);gameChatRefreshTimer=null;} }function reset(){["sport","skill","when","area"].forEach(id=>$(id).value="all");$("search").value="";render()}
+function close(){ $("backdrop").classList.remove("show");gameChatRequestToken++;if(gameChatRefreshTimer){clearInterval(gameChatRefreshTimer);gameChatRefreshTimer=null;}if(gameCompletionRefreshTimer){clearInterval(gameCompletionRefreshTimer);gameCompletionRefreshTimer=null;}if(gameCompletionCountdownTimer){clearInterval(gameCompletionCountdownTimer);gameCompletionCountdownTimer=null;}gameCompletionState=null; }function reset(){["sport","skill","when","area"].forEach(id=>$(id).value="all");$("search").value="";render()}
  $("apply").onclick=render;$("reset").onclick=reset;["sport","skill","when","area"].forEach(id=>$(id).onchange=render);$("search").onkeydown=e=>{if(e.key==="Enter")render()};$("close").onclick=close;$("cancel").onclick=close;$("backdrop").onclick=e=>{if(e.target===$("backdrop"))close()};document.onkeydown=e=>{if(e.key==="Escape")close()};
 $("gameInvitePanel").addEventListener("submit",async e=>{
   if(e.target.id!=="gameInviteForm")return;
@@ -3126,6 +3286,8 @@ body.rally-route-create #createBackdrop #createStatus{
 #backdrop .game-collab-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 #backdrop .game-collab-heading h3{margin:5px 0 0;color:#f2f8ff;font-size:18px}
 #backdrop .game-collab-copy,#backdrop .game-chat-hint{margin:0;color:#a8bfd1;font-size:11px;line-height:1.55}
+#backdrop #gameCompletionStatus.error{color:#ffb4b4}
+#backdrop #completeGameButton:disabled{cursor:not-allowed;opacity:.55}
 #backdrop .game-invite-private,#backdrop .game-chat-safety{padding:7px 9px;border:1px solid rgba(47,210,164,.22);border-radius:9px;background:rgba(47,210,164,.08);color:#85e8c3;font-size:9px;font-weight:850}
 #backdrop .game-invite-form{display:grid;gap:12px}
 #backdrop .game-invite-friends{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;max-height:180px;overflow:auto}
