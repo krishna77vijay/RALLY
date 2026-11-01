@@ -3356,39 +3356,27 @@ body.social-view .rally-social .social-heading:after{
 }
 </style>
 
-<style id="rally-jaguar-hero-hover">
+<style id="rally-panther-print-hero-hover">
 .hero-headline-single span{
-  position:relative;
   display:inline-block;
-  isolation:isolate;
-  transition:transform .25s ease,text-shadow .25s ease;
-}
-.hero-headline-single span:after{
-  content:"";
-  position:absolute;
-  z-index:-1;
-  top:-.72em;
-  right:-.8em;
-  width:2.1em;
-  aspect-ratio:5 / 3;
-  background:url("/panther-watermark.svg") center/contain no-repeat;
-  opacity:0;
-  transform:translateX(-.35em) scale(.78);
-  transition:opacity .25s ease,transform .35s ease;
-  pointer-events:none;
+  transition:transform .25s ease;
 }
 .hero-headline-single span:hover{
-  color:#8cecff!important;
-  -webkit-text-fill-color:#8cecff;
-  text-shadow:0 0 24px rgba(24,200,239,.32);
+  color:transparent!important;
+  -webkit-text-fill-color:transparent!important;
+  background-color:#747b80;
+  background-image:
+    radial-gradient(ellipse 12px 10px at 50% 50%,#747b80 0 34%,#111315 39% 66%,transparent 71%),
+    radial-gradient(ellipse 6px 8px at 14% 18%,#111315 0 58%,transparent 68%),
+    radial-gradient(ellipse 8px 6px at 87% 78%,#111315 0 58%,transparent 68%),
+    radial-gradient(ellipse 9px 5px at 88% 16%,#111315 0 58%,transparent 68%);
+  background-size:40px 34px;
+  background-clip:text;
+  -webkit-background-clip:text;
   transform:translateY(-3px) scale(1.025);
 }
-.hero-headline-single span:hover:after{
-  opacity:.42;
-  transform:translateX(0) scale(1);
-}
 @media(prefers-reduced-motion:reduce){
-  .hero-headline-single span,.hero-headline-single span:after{transition:none}
+  .hero-headline-single span{transition:none}
 }
 </style>
 
