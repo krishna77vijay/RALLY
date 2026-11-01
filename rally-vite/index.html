@@ -3356,5 +3356,51 @@ body.social-view .rally-social .social-heading:after{
 }
 </style>
 
+<style id="rally-jaguar-hero-hover">
+.hero-headline-single span{
+  position:relative;
+  display:inline-block;
+  isolation:isolate;
+  transition:transform .25s ease,text-shadow .25s ease;
+}
+.hero-headline-single span:after{
+  content:"";
+  position:absolute;
+  z-index:-1;
+  top:-.62em;
+  right:-.65em;
+  width:1.75em;
+  aspect-ratio:5 / 3;
+  background:url("/panther-watermark.svg") center/contain no-repeat;
+  opacity:0;
+  transform:translateX(-.2em) scale(.82) rotate(-8deg);
+  transition:opacity .25s ease,transform .35s ease;
+  pointer-events:none;
+}
+.hero-headline-single span:hover{
+  color:#f7d84a!important;
+  -webkit-text-fill-color:transparent;
+  background-color:#f7d84a;
+  background-image:
+    radial-gradient(ellipse at 50% 50%,#071a32 0 22%,transparent 26%),
+    radial-gradient(ellipse at 20% 30%,#071a32 0 14%,transparent 19%),
+    radial-gradient(ellipse at 80% 75%,#071a32 0 15%,transparent 20%),
+    radial-gradient(ellipse at 90% 15%,#071a32 0 6%,transparent 11%);
+  background-position:0 0,17px 4px,4px 15px,22px 18px;
+  background-size:34px 27px;
+  background-clip:text;
+  -webkit-background-clip:text;
+  text-shadow:0 0 24px rgba(247,216,74,.24);
+  transform:translateY(-3px) scale(1.025);
+}
+.hero-headline-single span:hover:after{
+  opacity:.22;
+  transform:translateX(0) scale(1) rotate(0);
+}
+@media(prefers-reduced-motion:reduce){
+  .hero-headline-single span,.hero-headline-single span:after{transition:none}
+}
+</style>
+
 </body>
 </html>
