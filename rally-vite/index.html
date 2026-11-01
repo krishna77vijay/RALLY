@@ -101,7 +101,7 @@ main{max-width:1320px;padding:34px clamp(18px,4vw,58px) 72px}
 
 /* RALLY refinement: more tactile cards, cleaner one-line hero */
 .hero-headline-single{white-space:nowrap;letter-spacing:-.045em;font-size:clamp(2.5rem,5.15vw,5.1rem);line-height:.98;max-width:none}
-.hero-headline-single span{display:inline;color:#58dcff}
+.hero-headline-single span{display:inline;color:#f5f9ff}
 .hero-discovery .hero-copy{min-width:0}
 .hero-discovery .hero-side{pointer-events:none}
 .hero-discovery .hero-mark{opacity:.12;transform:rotate(-8deg);transition:transform .7s cubic-bezier(.2,.8,.2,1),opacity .35s ease}
@@ -391,7 +391,7 @@ nav{background:rgba(8,29,52,.96)!important;border-bottom-color:rgba(95,190,232,.
 .primary,.join,.rally-social .social-primary-btn,.ranking-period .ranking-live-dot{background:var(--rally-electric-blue)!important}
 .primary:hover,.join:hover{background:#5B91FF!important;color:#07152d!important}
 .eyebrow,.hero .eyebrow,.hero-discovery .eyebrow,.sportname{color:#A8C5FF!important}
-.hero h1 span,.hero-headline-single span,.hero-discovery h1 span{color:var(--rally-electric-yellow)!important}
+.hero h1 span,.hero-discovery h1 span{color:var(--rally-electric-yellow)!important}
 .hero .tag{border-color:rgba(247,230,0,.48)!important;color:var(--rally-electric-yellow)!important}
 /* Electric yellow is a small highlight, not a page-wide background. */
 .rally-live-dot,.social-live-pill span,.live-dot{background:var(--rally-electric-yellow)!important;box-shadow:0 0 0 4px rgba(247,230,0,.10)!important}
@@ -423,7 +423,7 @@ body{background:radial-gradient(ellipse at 10% 0%,rgba(24,200,239,.09),transpare
 /* Main More Playing hero returns to RALLY cyan */
 .hero,.hero-discovery{background:radial-gradient(ellipse at 82% 28%,rgba(24,200,239,.17),transparent 40%),linear-gradient(118deg,#081c36 0%,#0b2c4c 60%,#0b3a59 100%)!important;border:1px solid rgba(24,200,239,.22)!important;box-shadow:0 16px 38px rgba(0,0,0,.16)!important;color:var(--rally-white)!important}
 .hero h1,.hero-discovery h1{color:#f7faff!important}
-.hero h1 span,.hero-discovery h1 span,.hero-headline-single span{color:var(--rally-cyan)!important}
+.hero h1 span,.hero-discovery h1 span{color:var(--rally-cyan)!important}
 .hero .eyebrow,.hero-discovery .eyebrow{color:#78e5ff!important}
 .hero p,.hero-discovery p{color:#c5d6e8!important}
 .hero .tag{background:rgba(24,200,239,.09)!important;border:1px solid rgba(24,200,239,.38)!important;color:#9cecff!important}
@@ -3356,27 +3356,59 @@ body.social-view .rally-social .social-heading:after{
 }
 </style>
 
-<style id="rally-panther-print-hero-hover">
+<style id="rally-headline-image-hover">
 .hero-headline-single span{
+  position:relative;
   display:inline-block;
-  transition:transform .25s ease;
+  isolation:isolate;
+  transform-origin:center;
+  transition:transform .5s cubic-bezier(.22,1,.36,1);
+}
+.hero-headline-single span:not(:hover){
+  color:#73b7ff!important;
+  -webkit-text-fill-color:#73b7ff!important;
+  text-shadow:none!important;
+}
+.hero-headline-single span:before,
+.hero-headline-single span:after{
+  content:"";
+  position:absolute;
+  top:50%;
+  left:50%;
+  width:100%;
+  height:auto;
+  aspect-ratio:3 / 1;
+  opacity:0;
+  pointer-events:none;
+  transform:translate(-50%,-50%) scale(.96);
+  transition:opacity .32s ease,transform .5s cubic-bezier(.22,1,.36,1);
+}
+.hero-headline-single span:before{
+  z-index:-1;
+  left:54%;
+  background:url("/rally-panther-sky.png") center/contain no-repeat;
+  filter:none;
+  transform:translate(-22%,-35%) scale(.24) rotate(-12deg);
+  transform-origin:left center;
+  transition:opacity .28s ease,transform .62s cubic-bezier(.22,1,.36,1);
+}
+.hero-headline-single span:after{
+  z-index:1;
+  background:url("/more-playing-reference.png") center/100% 100% no-repeat;
 }
 .hero-headline-single span:hover{
   color:transparent!important;
   -webkit-text-fill-color:transparent!important;
-  background-color:#747b80;
-  background-image:
-    radial-gradient(ellipse 12px 10px at 50% 50%,#747b80 0 34%,#111315 39% 66%,transparent 71%),
-    radial-gradient(ellipse 6px 8px at 14% 18%,#111315 0 58%,transparent 68%),
-    radial-gradient(ellipse 8px 6px at 87% 78%,#111315 0 58%,transparent 68%),
-    radial-gradient(ellipse 9px 5px at 88% 16%,#111315 0 58%,transparent 68%);
-  background-size:40px 34px;
-  background-clip:text;
-  -webkit-background-clip:text;
-  transform:translateY(-3px) scale(1.025);
+  text-shadow:none!important;
+  transform:scale(1.055);
+}
+.hero-headline-single span:hover:before{opacity:1;transform:translate(-22%,-35%) scale(1.15) rotate(-12deg)}
+.hero-headline-single span:hover:after{
+  opacity:1;
+  transform:translate(-50%,-50%) scale(1);
 }
 @media(prefers-reduced-motion:reduce){
-  .hero-headline-single span{transition:none}
+  .hero-headline-single span,.hero-headline-single span:before,.hero-headline-single span:after{transition:none}
 }
 </style>
 
