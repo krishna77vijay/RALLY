@@ -195,7 +195,11 @@ if (!supabase) {
           .eq('id', user.id)
           .maybeSingle()
         if (profileError) {
-          message(`Could not load your profile: ${profileError.message}`)
+          message(
+            profileError.code === '42703' || /age_group|gender|is_admin/i.test(profileError.message || '')
+              ? 'Your profile database columns are missing or cached. Apply 20261102002000_profile_matching_admin_access.sql in Supabase, then refresh.'
+              : `Could not load your profile: ${profileError.message}`,
+          )
           return
         }
         $('rallyProfileAge').value =

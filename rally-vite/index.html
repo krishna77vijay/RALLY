@@ -1300,11 +1300,12 @@ let list=games.filter(g=>{
  if (w === "today") timeMatches = gameDate ? gameDate >= startOfToday && gameDate < startOfTomorrow : /^Today/i.test(g.when);
  if (w === "tomorrow") timeMatches = gameDate ? gameDate >= startOfTomorrow && gameDate < startOfDayAfter : /^Tomorrow/i.test(g.when);
  if (w === "weekend") timeMatches = gameDate ? gameDate >= startOfToday && gameDate <= endOfWeekend && [0,6].includes(gameDate.getDay()) : /Saturday|Sunday/i.test(g.when);
- const matchesProfile = currentPlayerProfile.age_group === g.age &&
-   (g.genderEligibility === "all" || g.genderEligibility === currentPlayerProfile.gender);
+ const isRallyAdmin = currentPlayerProfile?.is_admin === true;
+ const matchesProfile = isRallyAdmin || (currentPlayerProfile?.age_group === g.age &&
+   (g.genderEligibility === "all" || g.genderEligibility === currentPlayerProfile?.gender));
  const matchesGenderFilter = genderFilter === "all" ||
    (genderFilter === "all-genders" ? g.genderEligibility === "all" : g.genderEligibility === genderFilter);
- const ownsOrJoined = !!(g.databaseGame && (g.canDelete || joinedGameIds.has(String(g.id)))); const capacityVisible = g.spots > 0 || ownsOrJoined; return matchesProfile && matchesGenderFilter && capacityVisible && (s==="all"||g.sport===s)&&(k==="all"||g.skill===k)&&timeMatches&&(a==="all"||g.venueType===a)&&(!q||[g.title,g.sport,g.desc,g.area,g.skill,g.venue,venueTypeLabels[g.venueType]||""].join(" ").toLowerCase().includes(q));
+ const ownsOrJoined = !!(g.databaseGame && (g.canDelete || joinedGameIds.has(String(g.id)))); const capacityVisible = isRallyAdmin || g.spots > 0 || ownsOrJoined; return matchesProfile && (isRallyAdmin || matchesGenderFilter) && capacityVisible && (s==="all"||g.sport===s)&&(k==="all"||g.skill===k)&&timeMatches&&(a==="all"||g.venueType===a)&&(!q||[g.title,g.sport,g.desc,g.area,g.skill,g.venue,venueTypeLabels[g.venueType]||""].join(" ").toLowerCase().includes(q));
 });$("count").textContent=list.length+" "+(list.length===1?"game":"games");$("cards").innerHTML=list.length?list.map(g=>{const joined=g.databaseGame&&joinedGameIds.has(String(g.id));const full=g.spots<=0;const genderLabel=g.genderEligibility==="girl"?"Girls":g.genderEligibility==="boy"?"Boys":"All genders";return `<article class="game" tabindex="0" role="button" aria-label="View details for ${g.title}" data-card-id="${g.id}"><div class="game-main"><div class="sportline"><div class="sporticon${g.sport==="Pickleball"?" pickleball-icon":""}" aria-hidden="true">${g.icon}</div><div class="sportname">${g.sport} · ${g.skill}</div></div><h3>${g.title}</h3><div class="details"><span>◷ ${g.when}</span><span>⌖ ${g.area}</span></div><div class="game-extra"><div class="chips"><span class="chip">${g.skill}</span><span class="chip">${g.age}</span><span class="chip">${venueTypeLabels[g.venueType]||"Other"}</span><span class="chip">${genderLabel}</span><span class="chip open">${full?"Game full":g.spots+" spots left"}</span>${joined ? '<span class="chip joined-chip">✓ YOU JOINED</span>' : ''}</div><div class="host"><span class="avatar">${g.initials}</span><span>Organized by <strong>${g.host}</strong></span></div></div><div class="game-hint">${joined?"You’re in · View details":full?"Full game · View details":"View game details"} <span aria-hidden="true">↗</span></div>${(joined || g.canDelete) && g.databaseGame ? (()=>{const total=Math.max(1,Number(g.totalSpots)||Number(g.spots)||1);const left=Math.max(0,Number(g.spots)||0);const filled=Math.min(total,Math.max(0,total-left));const pct=Math.round((filled/total)*100);const urgent=left<=1;return `<div class="rally-capacity"><div class="rally-capacity-label"><span>${urgent&&left===1?'ONLY 1 SPOT LEFT':left===0?'GAME FULL':`${filled} OF ${total} PLAYERS`}</span><span>${pct}%</span></div><div class="rally-capacity-track" role="progressbar" aria-label="Game capacity" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${filled}"><span class="rally-capacity-fill ${urgent?'urgent':''}" style="width:${pct}%"></span></div></div>`})() : ''}</div><div class="side"><span class="spots">${full?"FULL":g.spots+" open "+(g.spots===1?"spot":"spots")}</span><button class="join" data-view-id="${g.id}">${joined?"✓ Joined":full?"View full game":"View details"}</button>${g.databaseGame && joined ? `<button class="leave-game" data-leave-id="${g.id}">Leave game</button>` : ""}${g.databaseGame && g.canDelete ? `<button class="delete-game" data-delete-id="${g.id}">Delete game</button>` : ""}</div></article>`}).join(""):`<div class="empty"><strong>No games match your age group, gender, and filters.</strong><p>Only eligible games are shown. Try changing sport, time, venue type, or skill level.</p><button class="secondary" id="clear">Clear filters</button></div>`;document.querySelectorAll("[data-view-id]").forEach(b=>{b.onclick=e=>{e.stopPropagation();openGame(b.dataset.viewId)}});document.querySelectorAll("[data-card-id]").forEach(card=>{const show=()=>openGame(card.dataset.cardId);card.addEventListener("click",e=>{if(e.target.closest("button"))return;show()});card.addEventListener("keydown",e=>{if((e.key==="Enter"||e.key===" ")&&!e.target.closest("button")){e.preventDefault();show()}})});if($("clear"))$("clear").onclick=reset}
 const rallyBlockedChatWords=new Set(["ass","asshole","bastard","bitch","crap","damn","dick","fuck","hell","piss","shit","slut","whore"]);
 const rallyChatLetterPatterns={a:"[a@4]",e:"[e3]",i:"[i1!]",o:"[o0]",s:"[s5$]",t:"[t7]"};
@@ -2274,7 +2275,7 @@ async function loadSavedGames() {
     if (currentUserId) {
       const { data: profile, error: profileError } = await supabase
         .from("profiles")
-        .select("age_group, gender")
+        .select("age_group, gender, is_admin")
         .eq("id", currentUserId)
         .maybeSingle();
       if (profileError) throw profileError;
@@ -2407,7 +2408,9 @@ async function loadSavedGames() {
     render();
     const notice = $("stateNotice");
     if (notice) {
-      notice.textContent = error?.code === "42703" && /join_mode/i.test(error.message || "")
+      notice.textContent = error?.code === "42703" && /age_group|gender|is_admin/i.test(error.message || "")
+        ? "Apply 20261102002000_profile_matching_admin_access.sql in Supabase, then refresh to update the profile schema."
+        : error?.code === "42703" && /join_mode/i.test(error.message || "")
         ? "Apply the game join approval migration in Supabase to load games."
         : error?.code === "42703" && /age_group|gender|gender_eligibility|venue_type/i.test(error.message || "")
         ? "Apply the player age/gender and game venue-type migrations in Supabase."
