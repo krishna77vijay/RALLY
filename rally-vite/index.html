@@ -1230,7 +1230,7 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
 <div class="backdrop" id="createBackdrop" aria-labelledby="createTitle">
   <div class="modal">
     <div class="modalhead"><div><div class="eyebrow">Bring players together</div><h2 id="createTitle">Create a game</h2></div><button class="close" id="closeCreate" aria-label="Close">×</button></div>
-    <p>Set up a game so other players can discover it and request to join.</p>
+    <p>Set up a game, choose how players can join, and publish it to RALLY.</p>
     <form id="createForm">
       <label class="field"><span>GAME NAME</span><input id="newTitle" required maxlength="70" placeholder="e.g. Casual basketball after school"></label>
       <div class="create-fields-grid">
@@ -1242,7 +1242,8 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
         <label class="field"><span>VENUE TYPE</span><select id="newVenueType" required><option value="" disabled selected>Choose a venue type</option><option value="school">School / school court</option><option value="community_park">Community park</option><option value="sports_centre">Sports centre</option><option value="public_court">Public outdoor court</option><option value="indoor_gym">Indoor gym</option><option value="community_centre">Community centre</option><option value="other">Other</option></select></label>
       </div>
       <label class="field"><span>PLAYER SPOTS (HOST NOT COUNTED)</span><select id="newSpots"><option value="1">1 spot</option><option value="2" selected>2 spots</option><option value="3">3 spots</option><option value="4">4 spots</option><option value="5">5 spots</option><option value="6">6 spots</option><option value="7">7 spots</option><option value="8">8 spots</option><option value="9">9 spots</option><option value="10">10 spots</option></select></label>
-      <label class="field"><span>WHO CAN JOIN?</span><select id="newVisibility" aria-describedby="newVisibilityHint"><option value="public">Anyone on RALLY</option><option value="friends">Your friends only</option><option value="invitees">Only friends I invite</option></select><small class="field-hint" id="newVisibilityHint">Anyone can find and join this game.</small></label>
+      <label class="field"><span>WHO CAN SEE THIS GAME?</span><select id="newVisibility" aria-describedby="newVisibilityHint"><option value="public">Anyone on RALLY</option><option value="friends">Your friends only</option><option value="invitees">Only friends I invite</option></select><small class="field-hint" id="newVisibilityHint">Anyone can find this game.</small></label>
+      <label class="field"><span>JOIN METHOD</span><select id="newJoinMode" aria-describedby="newJoinModeHint"><option value="approval" selected>Players request; I approve them</option><option value="open">Players join instantly</option></select><small class="field-hint" id="newJoinModeHint">You’ll review each request before the player takes a spot.</small></label>
       <label class="field"><span>AGE GROUP</span><select id="newAge" required><option value="13–15">13–15</option><option value="15–17">15–17</option><option value="13–18">13–18</option><option value="17–19">17–19</option></select></label>
       <label class="field"><span>GENDER ELIGIBILITY</span><select id="newGenderEligibility" required><option value="all">All genders</option><option value="girl">Girls</option><option value="boy">Boys</option></select><small class="field-hint">Only players whose profile matches the age group and gender eligibility can see this game.</small></label>
       <label class="field"><span>GAME NOTES (OPTIONAL)</span><input id="newDesc" maxlength="180" placeholder="What should players know?"></label>
@@ -1261,6 +1262,7 @@ const games=[
 {id:4,sport:"Tennis",icon:"🎾",title:"Intermediate court session",skill:"Intermediate",when:"Saturday · 9:00 AM",area:"Sports centre",venueType:"sports_centre",venue:"Public sports centre court",spots:2,host:"Taylor P.",unavailable:true,initials:"TP",age:"Age group to be confirmed",desc:"Practice rallies and short sets. Confirm court booking before attending."},
 {id:5,sport:"Basketball",icon:"🏀",title:"Skills and shooting practice",skill:"Advanced",when:"Tomorrow · 4:30 PM",area:"School court",venueType:"school",venue:"Main school sports court",spots:4,host:"Jordan L.",initials:"JL",age:"Teen group (sample)",desc:"Practice shooting, passing, and short scrimmages in a supportive setting."}
 ];let requests={},active=null,viewState="default",currentUserId=null,currentPlayerProfile=null,joinedGameIds=new Set(),joiningGameIds=new Set(),rallySupportsFriendsOnlyGames=true,rallyInviteRpcAvailable=true,rallyInviteNotice="",gameChatRefreshTimer=null,gameChatRequestToken=0;let gameCompletionRefreshTimer=null,gameCompletionCountdownTimer=null,gameCompletionRequestInProgress=false,gameCompletionStatusFailed=false,gameCompletionState=null;const $=id=>document.getElementById(id);
+let pendingGameRequestIds = new Set();
 const venueTypeLabels={school:"School / school court",community_park:"Community park",sports_centre:"Sports centre",public_court:"Public outdoor court",indoor_gym:"Indoor gym",community_centre:"Community centre",other:"Other"};
 function escapeHtml(value){return String(value??"").replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));}
 let rallyKnownGameIds = null;
@@ -1350,6 +1352,7 @@ async function respondToGameInvite(inviteId,accept){
  return data;
 }
 function gameChatSetupError(error){
+ if((error?.code==="42883"||error?.code==="PGRST202")&&/join_request|join_mode/i.test(error.message||""))return "Game join approval needs the Supabase game join approval migration. Apply 20261102001000_game_join_approval.sql, then refresh.";
  if(error?.code==="42883"||error?.code==="PGRST202")return "Game invites and chat need the RALLY game collaboration migration. Apply the latest Supabase migration, then refresh.";
  return error?.message||"Could not load game invites or chat.";
 }
@@ -1543,6 +1546,12 @@ async function loadGameCollaboration(gameId){
    if(inviteError)throw inviteError;
    const ownInvite=(gameInvites||[]).find(invite=>invite.invitee_id===signedInUserId);
    if(isHost){
+     let joinRequestsMarkup="";
+     if(active.joinMode==="approval"){
+       const {data:joinRequests,error:joinRequestError}=await supabase.rpc("get_rally_game_join_requests",{p_game_id:String(gameId)});
+       if(joinRequestError)throw joinRequestError;
+       joinRequestsMarkup=`<section class="rally-join-requests" style="margin-bottom:22px;padding:15px;border:1px solid #234365;border-radius:14px;background:#071A35"><div class="game-collab-heading"><div><span class="game-lineup-kicker">HOST APPROVAL</span><h3>Join requests</h3></div><span class="game-invite-private">${joinRequests?.length||0} pending</span></div>${joinRequests?.length?joinRequests.map(request=>`<div class="rally-join-request" style="display:flex;align-items:center;justify-content:space-between;gap:14px;padding:12px 0;border-top:1px solid #234365"><div><strong>${escapeHtml(request.display_name||"RALLY player")}</strong><small style="display:block;color:#A9BED6;margin-top:4px">Requested ${escapeHtml(new Date(request.requested_at).toLocaleString())}</small></div><div class="game-invite-actions"><button class="primary" type="button" data-rally-join-response="${escapeHtml(request.request_id)}" data-rally-approve="true">Approve</button><button class="secondary" type="button" data-rally-join-response="${escapeHtml(request.request_id)}" data-rally-approve="false">Decline</button></div></div>`).join(""):'<p class="game-chat-empty">No pending join requests.</p>'}</section>`;
+     }
      const {data:friendRows,error:friendsError}=await supabase.from("rally_friendships")
        .select("user_low,user_high").eq("status","accepted")
        .or(`user_low.eq.${signedInUserId},user_high.eq.${signedInUserId}`);
@@ -1554,7 +1563,7 @@ async function loadGameCollaboration(gameId){
        if(profilesError)throw profilesError;
        friends=(profiles||[]).sort((a,b)=>(a.display_name||"").localeCompare(b.display_name||""));
      }
-     invitePanel.innerHTML=`<div class="game-collab-heading"><div><span class="game-lineup-kicker">BRING YOUR CREW</span><h3>Invite your friends</h3></div><span class="game-invite-private">They must accept to join</span></div><p class="game-collab-copy">Inviting a friend won’t add them automatically. They’ll need to accept the invite.</p>${friends.length?`<form id="gameInviteForm" class="game-invite-form"><div class="game-invite-friends">${friends.map(friend=>{const invite=(gameInvites||[]).find(item=>item.invitee_id===friend.id);return `<label><input type="checkbox" name="invitee" value="${escapeHtml(friend.id)}" ${invite?.status==="pending"||invite?.status==="accepted"?"disabled":""}><span>${escapeHtml(friend.display_name||"RALLY player")}</span><small>${invite?.status==="pending"?"Invited":invite?.status==="accepted"?"Accepted":"Friend"}</small></label>`}).join("")}</div><button class="primary" type="submit">Send selected invites</button></form>`:'<p class="game-chat-empty">Add friends first to invite them to this game.</p>'}`;
+     invitePanel.innerHTML=`${joinRequestsMarkup}<div class="game-collab-heading"><div><span class="game-lineup-kicker">BRING YOUR CREW</span><h3>Invite your friends</h3></div><span class="game-invite-private">They must accept to join</span></div><p class="game-collab-copy">Inviting a friend won’t add them automatically. They’ll need to accept the invite.</p>${friends.length?`<form id="gameInviteForm" class="game-invite-form"><div class="game-invite-friends">${friends.map(friend=>{const invite=(gameInvites||[]).find(item=>item.invitee_id===friend.id);return `<label><input type="checkbox" name="invitee" value="${escapeHtml(friend.id)}" ${invite?.status==="pending"||invite?.status==="accepted"?"disabled":""}><span>${escapeHtml(friend.display_name||"RALLY player")}</span><small>${invite?.status==="pending"?"Invited":invite?.status==="accepted"?"Accepted":"Friend"}</small></label>`}).join("")}</div><button class="primary" type="submit">Send selected invites</button></form>`:'<p class="game-chat-empty">Add friends first to invite them to this game.</p>'}`;
      invitePanel.hidden=false;
    }else if(ownInvite?.status==="pending"){
      invitePanel.innerHTML=`<div class="game-collab-heading"><div><span class="game-lineup-kicker">YOU’RE INVITED</span><h3>Join this game with your friend?</h3></div></div><p class="game-collab-copy">Accepting will join you to this game and use one open spot.</p><div class="game-invite-actions"><button class="primary" data-modal-accept-invite="${escapeHtml(ownInvite.invite_id)}">Accept &amp; join</button><button class="secondary" data-modal-decline-invite="${escapeHtml(ownInvite.invite_id)}">Decline</button></div>`;
@@ -1590,6 +1599,7 @@ function openGame(id){
     ["SPOTS LEFT",String(Math.max(0,Number(active.spots)||0))],
     ["AGE GROUP",escapeHtml(active.age)],
     ["GENDER ELIGIBILITY",active.genderEligibility==="girl"?"Girls":active.genderEligibility==="boy"?"Boys":"All genders"],
+    ["JOIN METHOD",active.joinMode==="approval"?"Request host approval":"Join instantly"],
     ["WHO CAN JOIN",active.visibility==="invitees"?"Only invited friends":active.visibility==="friends"?"Host’s friends only":"Anyone on RALLY"]
   ];
   $("mdetails").innerHTML=detailItems.map(([label,value])=>`<div class="game-detail-tile"><span>${label}</span><strong>${value}</strong></div>`).join("");
@@ -1606,12 +1616,13 @@ function openGame(id){
   $("status").textContent="";
   const key=String(active.id);
   const alreadyJoined=active.databaseGame&&joinedGameIds.has(key);
+  const requestPending=active.databaseGame&&pendingGameRequestIds.has(key);
   const requiresSafety=active.databaseGame&&window.rallySafetyPreferences?.requirePreJoinCheck!==false;
   $("safetyConfirmWrap").hidden=!requiresSafety;
   $("safetyCheck").checked=false;
-  $("safetyCheck").onchange=()=>{$("confirm").disabled=!$("safetyCheck").checked};
-  $("confirm").disabled=!active.databaseGame||alreadyJoined||joiningGameIds.has(key)||active.spots<=0||requiresSafety;
-  $("confirm").textContent=!active.databaseGame?"Demo game":alreadyJoined?"You’ve joined":active.spots<=0?"Game full":"Join game";
+  $("safetyCheck").onchange=()=>{$("confirm").disabled=!$("safetyCheck").checked||alreadyJoined||requestPending||active.spots<=0};
+  $("confirm").disabled=!active.databaseGame||alreadyJoined||requestPending||joiningGameIds.has(key)||active.spots<=0||requiresSafety;
+  $("confirm").textContent=!active.databaseGame?"Demo game":alreadyJoined?"You’ve joined":requestPending?"Request pending":active.spots<=0?"Game full":active.joinMode==="approval"?"Request to join":"Join game";
   $("backdrop").scrollTop=0;
   $("backdrop").querySelector(".game-details-modal").scrollTop=0;
   $("backdrop").classList.add("show");
@@ -1659,6 +1670,31 @@ $("gameInvitePanel").addEventListener("click",async e=>{
   }catch(error){
     console.error("RALLY game invite response failed:",error);
     $("status").textContent=gameChatSetupError(error);$("status").className="status show error";target.disabled=false;
+  }
+});
+$("gameInvitePanel").addEventListener("click",async e=>{
+  const target=e.target.closest("[data-rally-join-response]");
+  if(!target||!active)return;
+  const gameId=String(active.id),approve=target.dataset.rallyApprove==="true";
+  target.disabled=true;
+  try{
+    const supabase=window.rallySupabase;
+    if(!supabase)throw new Error("RALLY connection is unavailable. Refresh and try again.");
+    const {data,error}=await supabase.rpc("respond_rally_game_join_request",{
+      p_request_id:target.dataset.rallyJoinResponse,
+      p_approve:approve
+    });
+    if(error)throw error;
+    if(approve&&data?.approved!==true)throw new Error("The request was not approved. Refresh and try again.");
+    await loadSavedGames();
+    if(approve)await refreshGameSpots();
+    await loadGameCollaboration(gameId);
+    rallyNotify(approve?"Player approved and added to your game.":"Join request declined.");
+  }catch(error){
+    console.error("RALLY game join request response failed:",error);
+    $("status").textContent=error.message||"Could not respond to this join request.";
+    $("status").className="status show error";
+    target.disabled=false;
   }
 });
 $("gameInvites").addEventListener("click",async e=>{
@@ -1715,18 +1751,31 @@ $("confirm").onclick=async()=>{
     $("status").textContent="Please confirm that you checked the game details and public venue before joining.";
     $("status").className="status show";return;
   }
-  if(active.spots<=0||joinedGameIds.has(id)||joiningGameIds.has(id))return;
+  if(active.spots<=0||joinedGameIds.has(id)||pendingGameRequestIds.has(id)||joiningGameIds.has(id))return;
   const supabase=window.rallySupabase;
   if(!supabase){
     $("status").textContent="RALLY connection is unavailable. Refresh and try again.";
     $("status").classList.add("show","error");return;
   }
-  joiningGameIds.add(id);$("confirm").disabled=true;$("confirm").textContent="Joining…";
-  $("status").textContent="Joining game…";$("status").className="status show";
+  joiningGameIds.add(id);$("confirm").disabled=true;
+  $("confirm").textContent=active.joinMode==="approval"?"Sending request…":"Joining…";
+  $("status").textContent=active.joinMode==="approval"?"Sending your request…":"Joining game…";$("status").className="status show";
   try{
     const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
     if(sessionError)throw sessionError;
     if(!sessionData?.session?.user)throw new Error("Please sign in before joining a game.");
+    if(active.joinMode==="approval"){
+      const {data,error}=await supabase.rpc("request_rally_game_join",{p_game_id:id});
+      if(error)throw error;
+      if(data!=="pending")throw new Error("Your join request could not be saved. Please try again.");
+      pendingGameRequestIds.add(id);
+      $("confirm").textContent="Request pending";$("confirm").disabled=true;
+      $("status").textContent="Your request was sent to the game host.";
+      $("status").className="status show";
+      rallyNotify(`Your request to join “${active.title}” was sent.`);
+      render();
+      return;
+    }
     const {data,error}=await supabase.rpc("join_game",{p_game_id:id});
     if(error)throw error;
     joinedGameIds.add(id);
@@ -1797,7 +1846,12 @@ $("cards").addEventListener("click", async e => {
     const { data: sessionData, error: sessionError } =
       await supabase.auth.getSession();
 
-    if (sessionError || !sessionData.session) {
+    if (sessionError) {
+      status.textContent = "Could not verify your account: " + sessionError.message;
+      status.classList.add("show");
+      return;
+    }
+    if (!sessionData.session) {
       throw new Error("Please sign in again.");
     }
 
@@ -1851,8 +1905,14 @@ function updateGameVisibilityHint(){
   hint.textContent=$("newVisibility").value==="invitees"
     ?"Only friends you invite can see or join this game. Publish it, then invite friends from the game details."
     :$("newVisibility").value==="friends"
-      ?"Only your accepted friends can see and join this game."
-      :"Anyone can find and join this game.";
+      ?"Only your accepted friends can see this game."
+      :"Anyone can find this game.";
+}
+function updateJoinModeHint(){
+  const hint=$("newJoinModeHint");
+  if(hint)hint.textContent=$("newJoinMode").value==="approval"
+    ?"You’ll review each request before the player takes a spot."
+    :"Players who meet your game’s eligibility rules take an open spot immediately.";
 }
 function openCreate(){
   prepareCreateDateTime();
@@ -1860,6 +1920,7 @@ function openCreate(){
   $("createStatus").classList.remove("show");
   $("createStatus").textContent="";
   updateGameVisibilityHint();
+  updateJoinModeHint();
   document.querySelector('[data-rally-route="createGame"]').click();
 }
 function closeCreate(){
@@ -1872,6 +1933,7 @@ $("navCreate").onclick=e=>e.preventDefault();
 $("closeCreate").onclick=closeCreate;
 $("cancelCreate").onclick=closeCreate;
 $("newVisibility").addEventListener("change",updateGameVisibilityHint);
+$("newJoinMode").addEventListener("change",updateJoinModeHint);
 $("newDate").addEventListener("change", () => {
   const now = new Date();
   const minDate = new Date(now.getTime() + 5 * 60 * 1000);
@@ -1918,6 +1980,7 @@ $("createForm").addEventListener("submit", async e => {
   const venueType = $("newVenueType").value;
   const desc = $("newDesc").value.trim();
   const visibility = $("newVisibility").value;
+  const joinMode = $("newJoinMode").value;
 
   if ((visibility === "friends" || visibility === "invitees") && !rallySupportsFriendsOnlyGames) {
     status.textContent = "Private games aren't available yet. Apply the friends-only games database migration, then refresh RALLY.";
@@ -1971,6 +2034,7 @@ $("createForm").addEventListener("submit", async e => {
       venue_type: venueType,
       age_group: age,
       gender_eligibility: genderEligibility,
+      join_mode: joinMode,
       total_spots: spots,
       status: "published"
     };
@@ -2004,6 +2068,7 @@ $("createForm").addEventListener("submit", async e => {
       initials: "YOU",
       age,
       genderEligibility,
+      joinMode,
       desc: savedGame.description || desc || "Game details added by the organizer.",
       visibility: savedGame.visibility === "invitees" ? "invitees" : savedGame.visibility === "friends" ? "friends" : "public",
       databaseGame: true
@@ -2015,9 +2080,10 @@ $("createForm").addEventListener("submit", async e => {
     $("newVenueType").value = "";
 
     status.textContent =
-      "Game saved to RALLY! It is now stored in your database.";
+      "Game and join settings saved to RALLY.";
     status.classList.add("show");
     updateGameVisibilityHint();
+    updateJoinModeHint();
 
     setTimeout(() => {
       closeCreate();
@@ -2030,7 +2096,11 @@ $("createForm").addEventListener("submit", async e => {
   } catch (error) {
     console.error("RALLY game creation failed:", error);
 
-    status.textContent = error?.code === "23514" && /games_sport_check/i.test(error.message || "")
+    status.textContent = error?.code === "42703" && /join_mode/i.test(error.message || "")
+      ? "Game join settings need the game join approval migration applied in Supabase. Apply 20261102001000_game_join_approval.sql, then try again."
+      : error?.code === "23514" && /games_join_mode_check/i.test(error.message || "")
+        ? "The database needs the game join approval migration. Apply 20261102001000_game_join_approval.sql, then try again."
+      : error?.code === "23514" && /games_sport_check/i.test(error.message || "")
       ? "Couldn't save the game: this sport isn't enabled in the database yet. Apply the expand_game_sports migration in Supabase, then try again."
       : error?.code === "23514" && /games_visibility_check/i.test(error.message || "")
         ? "Couldn't save the game: apply the invitees-only games migration in Supabase, then try again."
@@ -2160,6 +2230,7 @@ function mapDatabaseGame(row, currentUserId, hostNames = new Map()) {
     genderEligibility: row.gender_eligibility || "all",
     desc: row.description || "Game details added by the organizer.",
     visibility: row.visibility === "invitees" ? "invitees" : row.visibility === "friends" ? "friends" : "public",
+    joinMode: row.join_mode === "approval" ? "approval" : "open",
     databaseGame: true
   };
 }
@@ -2211,10 +2282,11 @@ async function loadSavedGames() {
     }
     const previouslyJoinedIds = new Set(joinedGameIds);
     joinedGameIds.clear();
+    pendingGameRequestIds.clear();
 
     let { data, error } = await supabase
       .from("games")
-      .select("id, host_id, name, description, sport, skill, starts_at, venue, age_group, gender_eligibility, total_spots, status, visibility")
+      .select("id, host_id, name, description, sport, skill, starts_at, venue, age_group, gender_eligibility, total_spots, status, visibility, join_mode")
       .eq("status", "published")
       .order("starts_at", { ascending: true });
 
@@ -2234,7 +2306,7 @@ async function loadSavedGames() {
 
       ({ data, error } = await supabase
         .from("games")
-        .select("id, host_id, name, description, sport, skill, starts_at, venue, age_group, gender_eligibility, total_spots, status")
+        .select("id, host_id, name, description, sport, skill, starts_at, venue, age_group, gender_eligibility, total_spots, status, join_mode")
         .eq("status", "published")
         .order("starts_at", { ascending: true }));
     } else {
@@ -2260,6 +2332,15 @@ async function loadSavedGames() {
       } else {
         for (const membership of (memberships || [])) {
           if (membership.game_id) joinedGameIds.add(String(membership.game_id));
+        }
+      }
+      const { data: joinRequests, error: joinRequestsError } =
+        await supabase.rpc("get_my_rally_game_join_requests");
+      if (joinRequestsError) {
+        console.warn("RALLY: Could not load your pending game requests:", joinRequestsError);
+      } else {
+        for (const joinRequest of (joinRequests || [])) {
+          if (joinRequest.game_id) pendingGameRequestIds.add(String(joinRequest.game_id));
         }
       }
     }
@@ -2326,7 +2407,9 @@ async function loadSavedGames() {
     render();
     const notice = $("stateNotice");
     if (notice) {
-      notice.textContent = error?.code === "42703" && /age_group|gender|gender_eligibility|venue_type/i.test(error.message || "")
+      notice.textContent = error?.code === "42703" && /join_mode/i.test(error.message || "")
+        ? "Apply the game join approval migration in Supabase to load games."
+        : error?.code === "42703" && /age_group|gender|gender_eligibility|venue_type/i.test(error.message || "")
         ? "Apply the player age/gender and game venue-type migrations in Supabase."
         : "Saved games could not load. Check your connection and try again.";
       notice.className = "state-notice show error";
