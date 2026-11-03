@@ -114,7 +114,7 @@ if (!supabase) {
       </form>
       <form id="rallyProfileForm" hidden>
         <h3>Your matching profile</h3>
-        <p class="rally-auth-hint">These details appear to other players and match you with games.</p>
+        <p id="rallyProfileHint" class="rally-auth-hint">These details appear to other players and match you with games.</p>
         <label for="rallyProfileAge">Age group</label>
         <select id="rallyProfileAge" required>
           <option value="" disabled>Select your age group</option>
@@ -142,6 +142,14 @@ if (!supabase) {
 
   const $ = id => document.getElementById(id)
   let mode = 'signin'
+
+  function setProfileAdminMode(isAdmin) {
+    $('rallyProfileAge').required = !isAdmin
+    $('rallyProfileGender').required = !isAdmin
+    $('rallyProfileHint').textContent = isAdmin
+      ? 'As an admin, you can leave your age group and gender blank.'
+      : 'These details appear to other players and match you with games.'
+  }
 
   function message(text) {
     $('rallyAuthMessage').textContent = text
@@ -191,7 +199,7 @@ if (!supabase) {
         $('rallyAuthSwitch').dataset.action = 'signout'
         const { data: profile, error: profileError } = await supabase
           .from('profiles')
-          .select('age_group,gender')
+          .select('age_group,gender,is_admin')
           .eq('id', user.id)
           .maybeSingle()
         if (profileError) {
@@ -202,6 +210,7 @@ if (!supabase) {
           )
           return
         }
+        setProfileAdminMode(profile?.is_admin === true)
         $('rallyProfileAge').value =
           profile?.age_group || user.user_metadata?.age_group || ''
         $('rallyProfileGender').value =
@@ -303,7 +312,14 @@ if (!supabase) {
           .upsert(profile)
 
         if (profileError) throw profileError
+        const { data: savedProfile, error: savedProfileError } = await supabase
+          .from('profiles')
+          .select('is_admin')
+          .eq('id', user.id)
+          .maybeSingle()
+        if (savedProfileError) throw savedProfileError
 
+        setProfileAdminMode(savedProfile?.is_admin === true)
         $('rallyAuthTitle').textContent = 'Welcome to RALLY!'
         $('rallyAuthSubtitle').textContent = displayName
         $('rallyAuthForm').hidden = true
@@ -344,16 +360,16 @@ if (!supabase) {
         .upsert({
           id: user.id,
           display_name: user.user_metadata?.display_name || user.email || 'RALLY player',
-          age_group: $('rallyProfileAge').value,
-          gender: $('rallyProfileGender').value
+          age_group: $('rallyProfileAge').value || null,
+          gender: $('rallyProfileGender').value || null
         })
       if (error) throw error
 
       window.dispatchEvent(new Event('rally-profile-updated'))
       const { error: metadataError } = await supabase.auth.updateUser({
         data: {
-          age_group: $('rallyProfileAge').value,
-          gender: $('rallyProfileGender').value
+          age_group: $('rallyProfileAge').value || null,
+          gender: $('rallyProfileGender').value || null
         }
       })
       if (metadataError) throw metadataError
