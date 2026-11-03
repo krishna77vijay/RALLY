@@ -1,5 +1,5 @@
 import rallyLogo from './assets/rally-logo.png'
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import './App.css'
 
 type Game = {
@@ -63,13 +63,77 @@ const initialGames: Game[] = [
 
 const sports = ['All sports', 'Basketball', 'Football', 'Badminton', 'Tennis']
 const skills = ['Any level', 'Beginner', 'Intermediate', 'Advanced']
+const gameStorageKey = 'rally-game-state-v1'
+
+type SavedGameState = {
+  games: Game[]
+  joinedGames: number[]
+}
+
+function isGame(value: unknown): value is Game {
+  if (typeof value !== 'object' || value === null) return false
+
+  const game = value as Record<string, unknown>
+  return (
+    typeof game.id === 'number' &&
+    typeof game.name === 'string' &&
+    typeof game.sport === 'string' &&
+    typeof game.date === 'string' &&
+    typeof game.location === 'string' &&
+    typeof game.skill === 'string' &&
+    typeof game.spots === 'number' &&
+    Number.isFinite(game.spots) &&
+    game.spots >= 0 &&
+    typeof game.age === 'string' &&
+    typeof game.host === 'string'
+  )
+}
+
+function isSavedGameState(value: unknown): value is SavedGameState {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'games' in value &&
+    Array.isArray(value.games) &&
+    value.games.every(isGame) &&
+    'joinedGames' in value &&
+    Array.isArray(value.joinedGames) &&
+    value.joinedGames.every((id) => typeof id === 'number')
+  )
+}
+
+function loadSavedGameState(): SavedGameState {
+  if (typeof window === 'undefined') return { games: initialGames, joinedGames: [] }
+
+  try {
+    const savedState = window.localStorage.getItem(gameStorageKey)
+    if (!savedState) return { games: initialGames, joinedGames: [] }
+
+    const parsed: unknown = JSON.parse(savedState)
+    if (!isSavedGameState(parsed)) {
+      console.error('Saved game data is invalid; using the default games.')
+      return { games: initialGames, joinedGames: [] }
+    }
+
+    return {
+      games: parsed.games,
+      joinedGames: parsed.joinedGames.filter((id) =>
+        parsed.games.some((game) => game.id === id),
+      ),
+    }
+  } catch (error) {
+    console.error('Could not load saved game data.', error)
+    return { games: initialGames, joinedGames: [] }
+  }
+}
 
 function App() {
-  const [games, setGames] = useState<Game[]>(initialGames)
+  const [savedGameState] = useState(loadSavedGameState)
+  const [games, setGames] = useState<Game[]>(savedGameState.games)
+  const [joinedGames, setJoinedGames] = useState<number[]>(savedGameState.joinedGames)
   const [sport, setSport] = useState('All sports')
   const [skill, setSkill] = useState('Any level')
   const [search, setSearch] = useState('')
-  const [requests, setRequests] = useState<Record<number, string>>({})
   const [notice, setNotice] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
@@ -82,6 +146,17 @@ function App() {
     spots: '4',
     age: '13–18',
   })
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        gameStorageKey,
+        JSON.stringify({ games, joinedGames }),
+      )
+    } catch (error) {
+      console.error('Could not save game data.', error)
+    }
+  }, [games, joinedGames])
 
   const filteredGames = useMemo(() => {
     return games.filter((game) => {
@@ -98,14 +173,31 @@ function App() {
   }, [games, sport, skill, search])
 
   function requestToJoin(game: Game) {
-    if (game.spots <= 0) return
+    if (game.spots <= 0 || joinedGames.includes(game.id)) return
 
-    setRequests((previous) => ({
-      ...previous,
-      [game.id]: 'Pending',
-    }))
+    setGames((previous) =>
+      previous.map((currentGame) =>
+        currentGame.id === game.id && currentGame.spots > 0
+          ? { ...currentGame, spots: currentGame.spots - 1 }
+          : currentGame,
+      ),
+    )
+    setJoinedGames((previous) => [...previous, game.id])
+    setNotice(`You joined "${game.name}".`)
+  }
 
-    setNotice(`Your request to join "${game.name}" is pending.`)
+  function leaveGame(game: Game) {
+    if (!joinedGames.includes(game.id)) return
+
+    setGames((previous) =>
+      previous.map((currentGame) =>
+        currentGame.id === game.id
+          ? { ...currentGame, spots: currentGame.spots + 1 }
+          : currentGame,
+      ),
+    )
+    setJoinedGames((previous) => previous.filter((id) => id !== game.id))
+    setNotice(`You left "${game.name}".`)
   }
 
   function publishGame(event: React.FormEvent<HTMLFormElement>) {
@@ -317,6 +409,7 @@ function App() {
           padding: 7px 9px; border-radius: 7px; white-space: nowrap;
           color: #a9f0ff; background: #123c5d; font-size: 10px; font-weight: 900;
         }
+        .game-actions { display: flex; flex-direction: column; gap: 8px; }
         .join { min-width: 125px; }
         .join:disabled { cursor: not-allowed; opacity: .55; }
         .empty {
@@ -385,7 +478,7 @@ function App() {
           <button onClick={() => document.getElementById('safety')?.scrollIntoView({ behavior: 'smooth' })}>
             Safety
           </button>
-          <button onClick={() => setNotice('Find a game, check its details, and request to join. This is currently a front-end demo.')}>
+          <button onClick={() => setNotice('Find a game, check its details, and join if spots are available. This is currently a front-end demo.')}>
             How it works
           </button>
         </nav>
@@ -400,7 +493,7 @@ function App() {
           <h1>Find your people.<br />Play more.</h1>
           <p>
             Discover games that fit your sport, schedule, and skill level.
-            <br />Review the details, then request to join.
+            <br />Review the details, then join if there is an available spot.
           </p>
           <div className="hero-note">⚡ More games. Better crew.</div>
         </section>
@@ -480,7 +573,7 @@ function App() {
             ) : (
               <div className="cards">
                 {filteredGames.map((game) => {
-                  const request = requests[game.id]
+                  const joined = joinedGames.includes(game.id)
                   const icon: Record<string, string> = {
                     Basketball: '🏀',
                     Football: '⚽',
@@ -515,13 +608,20 @@ function App() {
                         <span className="spots">
                           {game.spots > 0 ? `${game.spots} spots left` : 'Game full'}
                         </span>
-                        <button
-                          className={`primary join ${request === 'Pending' ? 'secondary' : ''}`}
-                          disabled={game.spots <= 0 || request === 'Pending'}
-                          onClick={() => requestToJoin(game)}
-                        >
-                          {game.spots <= 0 ? 'Game full' : request === 'Pending' ? 'Request pending' : 'Join game →'}
-                        </button>
+                        <div className="game-actions">
+                          <button
+                            className={`primary join ${joined ? 'secondary' : ''}`}
+                            disabled={game.spots <= 0 || joined}
+                            onClick={() => requestToJoin(game)}
+                          >
+                            {joined ? 'Joined' : game.spots <= 0 ? 'Game full' : 'Join game →'}
+                          </button>
+                          {joined && (
+                            <button className="secondary join" onClick={() => leaveGame(game)}>
+                              Leave game
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </article>
                   )
