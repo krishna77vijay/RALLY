@@ -142,13 +142,16 @@ if (!supabase) {
 
   const $ = id => document.getElementById(id)
   let mode = 'signin'
+  let profileIsAdmin = false
 
-  function setProfileAdminMode(isAdmin) {
+  function setProfileMode(isAdmin, ageGroup, gender) {
     $('rallyProfileAge').required = !isAdmin
     $('rallyProfileGender').required = !isAdmin
+    $('rallyProfileAge').disabled = !isAdmin && Boolean(ageGroup)
+    $('rallyProfileGender').disabled = !isAdmin && Boolean(gender)
     $('rallyProfileHint').textContent = isAdmin
       ? 'As an admin, you can leave your age group and gender blank.'
-      : 'These details appear to other players and match you with games.'
+      : 'These details appear to other players and match you with games. Once saved, they cannot be changed.'
   }
 
   function message(text) {
@@ -210,11 +213,12 @@ if (!supabase) {
           )
           return
         }
-        setProfileAdminMode(profile?.is_admin === true)
-        $('rallyProfileAge').value =
-          profile?.age_group || user.user_metadata?.age_group || ''
-        $('rallyProfileGender').value =
-          profile?.gender || user.user_metadata?.gender || ''
+        const ageGroup = profile?.age_group || user.user_metadata?.age_group || ''
+        const gender = profile?.gender || user.user_metadata?.gender || ''
+        $('rallyProfileAge').value = ageGroup
+        $('rallyProfileGender').value = gender
+        profileIsAdmin = profile?.is_admin === true
+        setProfileMode(profileIsAdmin, ageGroup, gender)
       } else {
         $('rallyAuthForm').hidden = false
         $('rallyProfileForm').hidden = true
@@ -249,6 +253,7 @@ if (!supabase) {
       $('rallyAuthForm').hidden = false
       $('rallyProfileForm').hidden = true
       $('rallyAuthSwitch').dataset.action = 'switch'
+      profileIsAdmin = false
       setMode('signin')
       message('You have signed out.')
       return
@@ -319,17 +324,16 @@ if (!supabase) {
           .maybeSingle()
         if (savedProfileError) throw savedProfileError
 
-        setProfileAdminMode(savedProfile?.is_admin === true)
+        profileIsAdmin = savedProfile?.is_admin === true
+        const ageGroup = user.user_metadata?.age_group || ''
+        const gender = user.user_metadata?.gender || ''
+        setProfileMode(profileIsAdmin, ageGroup, gender)
         $('rallyAuthTitle').textContent = 'Welcome to RALLY!'
         $('rallyAuthSubtitle').textContent = displayName
         $('rallyAuthForm').hidden = true
         $('rallyProfileForm').hidden = false
-        if (user.user_metadata?.age_group) {
-          $('rallyProfileAge').value = user.user_metadata.age_group
-        }
-        if (user.user_metadata?.gender) {
-          $('rallyProfileGender').value = user.user_metadata.gender
-        }
+        $('rallyProfileAge').value = ageGroup
+        $('rallyProfileGender').value = gender
         $('rallyAuthSwitch').dataset.action = 'signout'
         $('rallyAuthSwitch').textContent = 'Sign out'
         message('You are signed in.')
@@ -373,6 +377,11 @@ if (!supabase) {
         }
       })
       if (metadataError) throw metadataError
+      setProfileMode(
+        profileIsAdmin,
+        $('rallyProfileAge').value,
+        $('rallyProfileGender').value,
+      )
       message('Your profile has been saved.')
     } catch (error) {
       message(error.message || 'Could not save your profile. Please try again.')
@@ -387,6 +396,7 @@ if (!supabase) {
       $('rallyAuthForm').hidden = false
       $('rallyProfileForm').hidden = true
       $('rallyAuthSwitch').dataset.action = 'switch'
+      profileIsAdmin = false
       setMode('signin')
     }
   })
