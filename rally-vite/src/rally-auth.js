@@ -183,7 +183,7 @@ if (!supabase) {
     $('rallyAuthMessage').classList.remove('show')
   }
 
-  function openModal() {
+  function openModal(promptText = '') {
     backdrop.classList.add('open')
     supabase.auth.getSession().then(async ({ data, error }) => {
       if (error) {
@@ -224,6 +224,7 @@ if (!supabase) {
         $('rallyProfileForm').hidden = true
         $('rallyAuthSwitch').dataset.action = 'switch'
         setMode('signin')
+        if (promptText) message(promptText)
       }
     })
   }
@@ -235,6 +236,10 @@ if (!supabase) {
   document.getElementById('profile')?.addEventListener('click', event => {
     event.preventDefault()
     openModal()
+  })
+
+  window.addEventListener('rally-auth-required', event => {
+    openModal(event.detail?.message || 'Please sign in or create an account to continue.')
   })
 
   $('rallyAuthClose').addEventListener('click', closeModal)

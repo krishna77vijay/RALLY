@@ -63,6 +63,7 @@ const initialGames: Game[] = [
 
 const sports = ['All sports', 'Basketball', 'Football', 'Badminton', 'Tennis']
 const skills = ['Any level', 'Beginner', 'Intermediate', 'Advanced']
+const gameSkills = ['All levels', 'Beginner', 'Intermediate', 'Advanced']
 const gameStorageKey = 'rally-game-state-v1'
 
 type SavedGameState = {
@@ -161,7 +162,8 @@ function App() {
   const filteredGames = useMemo(() => {
     return games.filter((game) => {
       const matchesSport = sport === 'All sports' || game.sport === sport
-      const matchesSkill = skill === 'Any level' || game.skill === skill
+      const matchesSkill =
+        skill === 'Any level' || game.skill === 'All levels' || game.skill === skill
       const term = search.toLowerCase()
       const matchesSearch =
         game.name.toLowerCase().includes(term) ||
@@ -678,7 +680,7 @@ function App() {
                   <label htmlFor="new-skill">Skill level</label>
                   <select id="new-skill" value={newGame.skill}
                     onChange={(event) => setNewGame({ ...newGame, skill: event.target.value })}>
-                    {skills.slice(1).map((item) => <option key={item}>{item}</option>)}
+                    {gameSkills.map((item) => <option key={item}>{item}</option>)}
                   </select>
                 </div>
               </div>

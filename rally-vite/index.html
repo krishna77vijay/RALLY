@@ -1762,13 +1762,21 @@ $("confirm").onclick=async()=>{
     $("status").textContent="RALLY connection is unavailable. Refresh and try again.";
     $("status").classList.add("show","error");return;
   }
-  joiningGameIds.add(id);$("confirm").disabled=true;
-  $("confirm").textContent=active.joinMode==="approval"?"Sending request…":"Joining…";
-  $("status").textContent=active.joinMode==="approval"?"Sending your request…":"Joining game…";$("status").className="status show";
+  joiningGameIds.add(id);
   try{
     const {data:sessionData,error:sessionError}=await supabase.auth.getSession();
     if(sessionError)throw sessionError;
-    if(!sessionData?.session?.user)throw new Error("Please sign in before joining a game.");
+    if(!sessionData?.session?.user){
+      $("status").textContent="";
+      $("status").className="status";
+      window.dispatchEvent(new CustomEvent("rally-auth-required",{
+        detail:{message:"Please sign in or create an account before joining a game."}
+      }));
+      return;
+    }
+    $("confirm").disabled=true;
+    $("confirm").textContent=active.joinMode==="approval"?"Sending request…":"Joining…";
+    $("status").textContent=active.joinMode==="approval"?"Sending your request…":"Joining game…";$("status").className="status show";
     if(active.joinMode==="approval"){
       const {data,error}=await supabase.rpc("request_rally_game_join",{p_game_id:id});
       if(error)throw error;
