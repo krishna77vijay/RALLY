@@ -1,5 +1,9 @@
 # React + TypeScript + Vite
 
+## Expired game cleanup
+
+Apply `supabase/migrations/20261110000000_fix_expired_game_cleanup_schedule.sql` to the Supabase project to ensure the `pg_cron` cleanup job is installed. It deletes games 12 hours after their scheduled start, and removes completed games sooner.
+
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
 Currently, two official plugins are available:

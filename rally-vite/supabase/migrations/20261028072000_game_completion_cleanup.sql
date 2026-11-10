@@ -244,7 +244,7 @@ revoke all on function public.confirm_rally_game_completed(text) from public, an
 grant execute on function public.confirm_rally_game_completed(text) to authenticated;
 revoke all on function public.delete_expired_rally_games() from public, anon, authenticated;
 
-create extension if not exists pg_cron with schema extensions;
+create extension if not exists pg_cron;
 
 do $$
 declare
