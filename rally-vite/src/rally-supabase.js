@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import './rally-age.js'
 
 const supabase = createClient(
   import.meta.env.VITE_SUPABASE_URL,

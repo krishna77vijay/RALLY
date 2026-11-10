@@ -145,7 +145,8 @@ function App() {
     location: '',
     skill: 'Beginner',
     spots: '4',
-    age: '13–18',
+    minAge: '13',
+    maxAge: '18',
   })
 
   useEffect(() => {
@@ -213,7 +214,7 @@ function App() {
       location: newGame.location.trim(),
       skill: newGame.skill,
       spots: Number(newGame.spots),
-      age: newGame.age,
+      age: `${newGame.minAge}–${newGame.maxAge}`,
       host: 'You',
     }
 
@@ -231,7 +232,8 @@ function App() {
       location: '',
       skill: 'Beginner',
       spots: '4',
-      age: '13–18',
+      minAge: '13',
+      maxAge: '18',
     })
   }
 
@@ -724,13 +726,29 @@ function App() {
                   </select>
                 </div>
                 <div className="field">
-                  <label htmlFor="new-age">Age group</label>
-                  <select id="new-age" value={newGame.age}
-                    onChange={(event) => setNewGame({ ...newGame, age: event.target.value })}>
-                    <option>13–15</option>
-                    <option>15–17</option>
-                    <option>13–18</option>
-                    <option>17–19</option>
+                  <label htmlFor="new-min-age">Minimum age</label>
+                  <select id="new-min-age" value={newGame.minAge}
+                    onChange={(event) => setNewGame({
+                      ...newGame,
+                      minAge: event.target.value,
+                      maxAge: Number(newGame.maxAge) < Number(event.target.value)
+                        ? event.target.value
+                        : newGame.maxAge,
+                    })}>
+                    {[13, 14, 15, 16, 17, 18, 19].map((age) => (
+                      <option key={age} value={age}>{age}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="field">
+                  <label htmlFor="new-max-age">Maximum age</label>
+                  <select id="new-max-age" value={newGame.maxAge}
+                    onChange={(event) => setNewGame({ ...newGame, maxAge: event.target.value })}>
+                    {[13, 14, 15, 16, 17, 18, 19].map((age) => (
+                      <option key={age} value={age} disabled={age < Number(newGame.minAge)}>
+                        {age}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

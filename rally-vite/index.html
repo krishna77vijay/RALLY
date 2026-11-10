@@ -1248,8 +1248,9 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
       <label class="field"><span>PLAYER SPOTS (HOST NOT COUNTED)</span><select id="newSpots"><option value="1">1 spot</option><option value="2" selected>2 spots</option><option value="3">3 spots</option><option value="4">4 spots</option><option value="5">5 spots</option><option value="6">6 spots</option><option value="7">7 spots</option><option value="8">8 spots</option><option value="9">9 spots</option><option value="10">10 spots</option></select></label>
       <label class="field"><span>WHO CAN SEE THIS GAME?</span><select id="newVisibility" aria-describedby="newVisibilityHint"><option value="public">Anyone on RALLY</option><option value="friends">Your friends only</option><option value="invitees">Only friends I invite</option></select><small class="field-hint" id="newVisibilityHint">Anyone can find this game.</small></label>
       <label class="field"><span>JOIN METHOD</span><select id="newJoinMode" aria-describedby="newJoinModeHint"><option value="approval" selected>Players request; I approve them</option><option value="open">Players join instantly</option></select><small class="field-hint" id="newJoinModeHint">You’ll review each request before the player takes a spot.</small></label>
-      <label class="field"><span>AGE GROUP</span><select id="newAge" required><option value="13–15">13–15</option><option value="15–17">15–17</option><option value="13–18">13–18</option><option value="17–19">17–19</option></select></label>
-      <label class="field"><span>GENDER ELIGIBILITY</span><select id="newGenderEligibility" required><option value="all">All genders</option><option value="girl">Female</option><option value="boy">Male</option></select><small class="field-hint">Only players whose profile matches the age group and gender eligibility can see this game.</small></label>
+      <label class="field"><span>MINIMUM PLAYER AGE</span><select id="newMinAge" required><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option></select></label>
+      <label class="field"><span>MAXIMUM PLAYER AGE</span><select id="newMaxAge" required><option>13</option><option>14</option><option selected>15</option><option>16</option><option>17</option><option>18</option><option>19</option></select><small class="field-hint">Both age limits are inclusive.</small></label>
+      <label class="field"><span>GENDER ELIGIBILITY</span><select id="newGenderEligibility" required><option value="all">All genders</option><option value="girl">Female</option><option value="boy">Male</option></select><small class="field-hint">Only players whose age and gender match can see or join this game.</small></label>
       <label class="field"><span>GAME NOTES (OPTIONAL)</span><input id="newDesc" maxlength="180" placeholder="What should players know?"></label>
       <div class="mactions"><button type="button" class="secondary" id="cancelCreate">Cancel</button><button type="submit" class="primary">Publish game</button></div>
     </form>
@@ -1314,7 +1315,7 @@ if(viewState==="loading"){$("count").textContent="Loading…";$("cards").innerHT
 if(viewState==="error"){ $("count").textContent="Unable to load"; $("cards").innerHTML='<div class="empty"><strong>We couldn’t load games.</strong><p>Check your connection and try again.</p><button class="primary" id="retryGames">Retry</button></div>'; $("retryGames").onclick=()=>{viewState="default";render()};return}
 if(!currentUserId){$("count").textContent="Sign in to find matching games";$("cards").innerHTML='<div class="empty"><strong>Sign in to see games for you.</strong><p>RALLY matches games to your age group and gender. Create a player profile to see eligible games.</p><button class="primary" id="signInForGames">Sign in / create account</button></div>';if($("signInForGames"))$("signInForGames").onclick=()=>$("profile")?.click();return}
 const hasOwnedOrJoinedGames=games.some(g=>g.databaseGame&&(g.canDelete||joinedGameIds.has(String(g.id))));
-if(currentPlayerProfile?.is_admin!==true&&(!currentPlayerProfile?.age_group||!currentPlayerProfile?.gender)&&!hasOwnedOrJoinedGames){$("count").textContent="Complete your player profile";$("cards").innerHTML='<div class="empty"><strong>Add your age group and gender.</strong><p>Complete your profile to see games that match. These details are shown to other players.</p><button class="primary" id="completePlayerProfile">Complete profile</button></div>';if($("completePlayerProfile"))$("completePlayerProfile").onclick=()=>$("profile")?.click();return}
+if(currentPlayerProfile?.is_admin!==true&&(!Number.isInteger(currentPlayerProfile?.age)||!currentPlayerProfile?.gender)&&!hasOwnedOrJoinedGames){$("count").textContent="Complete your player profile";$("cards").innerHTML='<div class="empty"><strong>Add your date of birth and gender.</strong><p>Your date of birth stays private and is used to match you with age-eligible games.</p><button class="primary" id="completePlayerProfile">Complete profile</button></div>';if($("completePlayerProfile"))$("completePlayerProfile").onclick=()=>$("profile")?.click();return}
 const now = new Date();
 scheduleGameStartVisibilityUpdate(now);
 const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -1328,8 +1329,13 @@ let list=games.filter(g=>{
  if (w === "tomorrow") timeMatches = gameDate ? gameDate >= startOfTomorrow && gameDate < startOfDayAfter : /^Tomorrow/i.test(g.when);
  if (w === "weekend") timeMatches = gameDate ? gameDate >= startOfToday && gameDate <= endOfWeekend && [0,6].includes(gameDate.getDay()) : /Saturday|Sunday/i.test(g.when);
  const isRallyAdmin = currentPlayerProfile?.is_admin === true;
- const ownsOrJoined = !!(g.databaseGame && (g.canDelete || joinedGameIds.has(String(g.id)))); const matchesProfile = isRallyAdmin || ownsOrJoined || (currentPlayerProfile?.age_group === g.age &&
-   (g.genderEligibility === "all" || g.genderEligibility === currentPlayerProfile?.gender));
+ const ownsOrJoined = !!(g.databaseGame && (g.canDelete || joinedGameIds.has(String(g.id)))); const matchesProfile = isRallyAdmin || ownsOrJoined || window.rallyAge?.isPlayerEligibleForGame({
+   age: currentPlayerProfile?.age,
+   minAge: g.minAge,
+   maxAge: g.maxAge,
+   playerGender: currentPlayerProfile?.gender,
+   genderEligibility: g.genderEligibility
+ });
  const matchesGenderFilter = genderFilter === "all" ||
    (genderFilter === "all-genders" ? g.genderEligibility === "all" : g.genderEligibility === genderFilter);
  const capacityVisible = isRallyAdmin || g.spots > 0 || ownsOrJoined; const startedForViewer = !!(g.databaseGame && gameDate && gameDate <= now && !isRallyAdmin && (!ownsOrJoined || gameDate.getTime() <= now.getTime() - 24 * 60 * 60 * 1000)); return !startedForViewer && matchesProfile && (isRallyAdmin || ownsOrJoined || matchesGenderFilter) && capacityVisible && (s==="all"||g.sport===s)&&(k==="all"||g.skill===k)&&timeMatches&&(a==="all"||g.venueType===a)&&(!q||[g.title,g.sport,g.desc,g.area,g.skill,g.venue,venueTypeLabels[g.venueType]||""].join(" ").toLowerCase().includes(q));
@@ -1630,7 +1636,7 @@ function openGame(id){
     ["VENUE TYPE",escapeHtml(venueTypeLabels[active.venueType]||"Other")],
     ["SKILL LEVEL",escapeHtml(active.skill)],
     ["SPOTS LEFT",String(Math.max(0,Number(active.spots)||0))],
-    ["AGE GROUP",escapeHtml(active.age)],
+    ["AGE RANGE",escapeHtml(active.age)],
     ["GENDER ELIGIBILITY",active.genderEligibility==="girl"?"Female":active.genderEligibility==="boy"?"Male":"All genders"],
     ["JOIN METHOD",active.joinMode==="approval"?"Request host approval":"Join instantly"],
     ["WHO CAN JOIN",active.visibility==="invitees"?"Only invited friends":active.visibility==="friends"?"Host’s friends only":"Anyone on RALLY"]
@@ -1975,6 +1981,15 @@ $("closeCreate").onclick=closeCreate;
 $("cancelCreate").onclick=closeCreate;
 $("newVisibility").addEventListener("change",updateGameVisibilityHint);
 $("newJoinMode").addEventListener("change",updateJoinModeHint);
+$("newMinAge").addEventListener("change", () => {
+  const minAge = Number($("newMinAge").value);
+  for (const option of $("newMaxAge").options) {
+    option.disabled = Number(option.value) < minAge;
+  }
+  if (Number($("newMaxAge").value) < minAge) {
+    $("newMaxAge").value = String(minAge);
+  }
+});
 $("newDate").addEventListener("change", () => {
   const now = new Date();
   const minDate = new Date(now.getTime() + 5 * 60 * 1000);
@@ -2016,7 +2031,8 @@ $("createForm").addEventListener("submit", async e => {
   const date = $("newDate").value;
   const time = $("newTime").value;
   const spots = Number($("newSpots").value);
-  const age = $("newAge").value;
+  const minAge = Number($("newMinAge").value);
+  const maxAge = Number($("newMaxAge").value);
   const genderEligibility = $("newGenderEligibility").value;
   const venueType = $("newVenueType").value;
   const desc = $("newDesc").value.trim();
@@ -2029,8 +2045,10 @@ $("createForm").addEventListener("submit", async e => {
     return;
   }
 
-  if (!title || !venue || !Number.isInteger(spots) || spots < 1) {
-    status.textContent = "Enter a game title, location, and valid number of spots.";
+  if (!title || !venue || !Number.isInteger(spots) || spots < 1 ||
+      !Number.isInteger(minAge) || !Number.isInteger(maxAge) ||
+      minAge < 13 || maxAge > 19 || minAge > maxAge) {
+    status.textContent = "Enter a game title, location, valid number of spots, and valid age range.";
     status.classList.add("show");
     return;
   }
@@ -2073,7 +2091,9 @@ $("createForm").addEventListener("submit", async e => {
       starts_at: start.toISOString(),
       venue,
       venue_type: venueType,
-      age_group: age,
+      age_group: `${minAge}–${maxAge}`,
+      min_age: minAge,
+      max_age: maxAge,
       gender_eligibility: genderEligibility,
       join_mode: joinMode,
       total_spots: spots,
@@ -2107,7 +2127,9 @@ $("createForm").addEventListener("submit", async e => {
       canDelete: true,
       host: "You",
       initials: "YOU",
-      age,
+      minAge,
+      maxAge,
+      age: `Ages ${minAge}–${maxAge}`,
       genderEligibility,
       joinMode,
       desc: savedGame.description || desc || "Game details added by the organizer.",
@@ -2119,6 +2141,7 @@ $("createForm").addEventListener("submit", async e => {
     render();
     $("createForm").reset();
     $("newVenueType").value = "";
+      $("newMinAge").dispatchEvent(new Event("change"));
 
     status.textContent =
       "Game and join settings saved to RALLY.";
@@ -2137,7 +2160,11 @@ $("createForm").addEventListener("submit", async e => {
   } catch (error) {
     console.error("RALLY game creation failed:", error);
 
-    status.textContent = error?.code === "42703" && /join_mode/i.test(error.message || "")
+    status.textContent = error?.code === "42703" && /min_age|max_age/i.test(error.message || "")
+      ? "Game age ranges need the numeric game age eligibility migration applied in Supabase. Apply 20261110002000_numeric_game_age_eligibility.sql, then try again."
+      : error?.code === "23514" && /games_age_range_valid_check/i.test(error.message || "")
+      ? "Choose a valid inclusive age range between 13 and 19."
+    : error?.code === "42703" && /join_mode/i.test(error.message || "")
       ? "Game join settings need the game join approval migration applied in Supabase. Apply 20261102001000_game_join_approval.sql, then try again."
       : error?.code === "23514" && /games_join_mode_check/i.test(error.message || "")
         ? "The database needs the game join approval migration. Apply 20261102001000_game_join_approval.sql, then try again."
@@ -2242,6 +2269,8 @@ function mapDatabaseGame(row, currentUserId, hostNames = new Map()) {
     Volleyball: "🏐"
   };
   const venue = row.venue || "";
+  const minAge = row.min_age == null ? null : Number(row.min_age);
+  const maxAge = row.max_age == null ? null : Number(row.max_age);
 
   const hostName = row.host_id === currentUserId
     ? "You"
@@ -2267,7 +2296,11 @@ function mapDatabaseGame(row, currentUserId, hostNames = new Map()) {
     canDelete: row.host_id === currentUserId,
     host: hostName,
     initials: hostInitials,
-    age: row.age_group || "Age group to be confirmed",
+    minAge: Number.isInteger(minAge) ? minAge : null,
+    maxAge: Number.isInteger(maxAge) ? maxAge : null,
+    age: Number.isInteger(minAge) && Number.isInteger(maxAge)
+      ? `Ages ${minAge}–${maxAge}`
+      : "Age range under review",
     genderEligibility: row.gender_eligibility || "all",
     desc: row.description || "Game details added by the organizer.",
     visibility: row.visibility === "invitees" ? "invitees" : row.visibility === "friends" ? "friends" : "public",
@@ -2319,7 +2352,13 @@ async function loadSavedGames() {
         .eq("id", currentUserId)
         .maybeSingle();
       if (profileError) throw profileError;
-      currentPlayerProfile = profile;
+      const { data: playerAge, error: playerAgeError } =
+        await supabase.rpc("get_my_rally_player_age");
+      if (playerAgeError) throw playerAgeError;
+      currentPlayerProfile = {
+        ...profile,
+        age: Number.isInteger(playerAge) ? playerAge : null
+      };
     }
     const previouslyJoinedIds = new Set(joinedGameIds);
     joinedGameIds.clear();
@@ -2327,7 +2366,7 @@ async function loadSavedGames() {
 
     let { data, error } = await supabase
       .from("games")
-      .select("id, host_id, name, description, sport, skill, starts_at, venue, age_group, gender_eligibility, total_spots, status, visibility, join_mode")
+      .select("id, host_id, name, description, sport, skill, starts_at, venue, age_group, min_age, max_age, gender_eligibility, total_spots, status, visibility, join_mode")
       .in("status", ["published", "completed"])
       .order("starts_at", { ascending: true });
 
@@ -2347,7 +2386,7 @@ async function loadSavedGames() {
 
       ({ data, error } = await supabase
         .from("games")
-        .select("id, host_id, name, description, sport, skill, starts_at, venue, age_group, gender_eligibility, total_spots, status, join_mode")
+        .select("id, host_id, name, description, sport, skill, starts_at, venue, age_group, min_age, max_age, gender_eligibility, total_spots, status, join_mode")
         .in("status", ["published", "completed"])
         .order("starts_at", { ascending: true }));
     } else {
@@ -2448,7 +2487,10 @@ async function loadSavedGames() {
     render();
     const notice = $("stateNotice");
     if (notice) {
-      notice.textContent = error?.code === "42703" && /age_group|gender|is_admin/i.test(error.message || "")
+      notice.textContent = (error?.code === "42703" && /min_age|max_age/i.test(error.message || ""))
+        || ((error?.code === "42883" || error?.code === "PGRST202") && /get_my_rally_player_age/i.test(error.message || ""))
+        ? "Apply 20261110002000_numeric_game_age_eligibility.sql in Supabase, then refresh."
+        : error?.code === "42703" && /age_group|gender|is_admin/i.test(error.message || "")
         ? "Apply 20261102002000_profile_matching_admin_access.sql in Supabase, then refresh to update the profile schema."
         : error?.code === "42703" && /join_mode/i.test(error.message || "")
         ? "Apply the game join approval migration in Supabase to load games."

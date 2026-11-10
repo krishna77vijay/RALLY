@@ -37,7 +37,9 @@ See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rule
 
 ## RALLY age and gender matching
 
-Apply `supabase/migrations/20261101002000_player_age_gender_matching.sql` in Supabase after the earlier migrations. Signup collects an age group and gender; player profiles show those details to other players. Games are visible and joinable only by players whose age-group selection matches exactly and whose gender matches the game eligibility, unless the game is open to all genders. Players who select “Prefer not to say” can see all-gender games.
+Apply `supabase/migrations/20261110002000_numeric_game_age_eligibility.sql` after all earlier RALLY migrations, including game invites, profile matching, and game-history migrations. It converts the known legacy game labels (`13–15`, `15–17`, `13–18`, `17–19`) to inclusive `min_age` / `max_age` values and stores unsupported or malformed ranges for review in `private.rally_unmapped_game_age_ranges` instead of guessing. Inspect that table in the Supabase SQL editor with `select * from private.rally_unmapped_game_age_ranges;`. Existing profiles keep their age-group data; each player must add a date of birth once before joining or discovering age-matched games. Birth dates are stored in the non-API-exposed `private.rally_player_birth_dates` table, are not displayed to other players, and cannot be changed through the app. Players aged 13–19 are supported. Admins retain the existing database-controlled age and gender bypass.
+
+The app and database both enforce the same inclusive age-range and gender rules. Backend checks cover game discovery through RLS, approval requests, and direct participant inserts; admins remain exempt only when their protected `profiles.is_admin` flag is set.
 
 Apply `supabase/migrations/20261101003000_game_venue_type.sql` after that migration to add explicit venue types to games. Hosts choose a venue type when creating a game; players can filter by school, community park, sports centre, public outdoor court, indoor gym, community centre, or other. Existing games are backfilled from their venue text where possible.
 

@@ -87,13 +87,8 @@ if (!supabase) {
           <input id="rallyAuthName" maxlength="60" autocomplete="nickname">
         </div>
         <div id="rallyAuthMatchingFields" hidden>
-          <label for="rallyAuthAge">Age group</label>
-          <select id="rallyAuthAge">
-            <option value="" disabled selected>Select your age group</option>
-            <option value="13–15">13–15</option>
-            <option value="15–17">15–17</option>
-            <option value="17–19">17–19</option>
-          </select>
+          <label for="rallyAuthBirthDate">Date of birth</label>
+          <input id="rallyAuthBirthDate" type="date" autocomplete="bday" required>
           <label for="rallyAuthGender">Gender</label>
           <select id="rallyAuthGender">
             <option value="" disabled selected>Select your gender</option>
@@ -101,7 +96,7 @@ if (!supabase) {
             <option value="boy">Male</option>
             <option value="prefer_not_to_say">Prefer not to say</option>
           </select>
-          <p class="rally-auth-hint">Your age group and gender appear on your player profile and determine which games you can see. Choose “Prefer not to say” to see games open to all genders.</p>
+          <p class="rally-auth-hint">Your date of birth stays private and determines which age-eligible games you can see. Your gender appears on your player profile. Choose “Prefer not to say” to see games open to all genders.</p>
         </div>
         <label for="rallyAuthEmail">Email</label>
         <input id="rallyAuthEmail" type="email"
@@ -114,13 +109,8 @@ if (!supabase) {
       <form id="rallyProfileForm" hidden>
         <h3>Your matching profile</h3>
         <p id="rallyProfileHint" class="rally-auth-hint">These details appear to other players and match you with games.</p>
-        <label for="rallyProfileAge">Age group</label>
-        <select id="rallyProfileAge" required>
-          <option value="" disabled>Select your age group</option>
-          <option value="13–15">13–15</option>
-          <option value="15–17">15–17</option>
-          <option value="17–19">17–19</option>
-        </select>
+        <label for="rallyProfileBirthDate">Date of birth (private)</label>
+        <input id="rallyProfileBirthDate" type="date" autocomplete="bday">
         <label for="rallyProfileGender">Gender</label>
         <select id="rallyProfileGender" required>
           <option value="" disabled>Select your gender</option>
@@ -141,15 +131,17 @@ if (!supabase) {
   const $ = id => document.getElementById(id)
   let mode = 'signin'
   let profileIsAdmin = false
+  let hasSavedBirthDate = false
+  let profileAgeGroup = ''
 
-  function setProfileMode(isAdmin, ageGroup, gender) {
-    $('rallyProfileAge').required = !isAdmin
+  function setProfileMode(isAdmin, hasBirthDate, gender) {
+    $('rallyProfileBirthDate').required = !isAdmin && !hasBirthDate
     $('rallyProfileGender').required = !isAdmin
-    $('rallyProfileAge').disabled = !isAdmin && Boolean(ageGroup)
+    $('rallyProfileBirthDate').disabled = hasBirthDate
     $('rallyProfileGender').disabled = !isAdmin && Boolean(gender)
     $('rallyProfileHint').textContent = isAdmin
-      ? 'As an admin, you can leave your age group and gender blank.'
-      : 'These details appear to other players and match you with games. Once saved, they cannot be changed.'
+      ? 'Your date of birth stays private. As an admin, you can leave it and gender blank.'
+      : 'Your date of birth stays private and is used for age matching. Once saved, it cannot be changed.'
   }
 
   function message(text) {
@@ -168,7 +160,7 @@ if (!supabase) {
     $('rallyAuthNameWrap').hidden = mode !== 'signup'
     $('rallyAuthName').required = mode === 'signup'
     $('rallyAuthMatchingFields').hidden = mode !== 'signup'
-    $('rallyAuthAge').required = mode === 'signup'
+    $('rallyAuthBirthDate').required = mode === 'signup'
     $('rallyAuthGender').required = mode === 'signup'
     $('rallyAuthPassword').autocomplete =
       mode === 'signup' ? 'new-password' : 'current-password'
@@ -213,10 +205,24 @@ if (!supabase) {
         }
         const ageGroup = profile?.age_group || user.user_metadata?.age_group || ''
         const gender = profile?.gender || user.user_metadata?.gender || ''
-        $('rallyProfileAge').value = ageGroup
+        profileAgeGroup = ageGroup
         $('rallyProfileGender').value = gender
+        const { data: playerAge, error: playerAgeError } =
+          await supabase.rpc('get_my_rally_player_age')
+        if (playerAgeError) {
+          message(
+            playerAgeError.code === '42883' || playerAgeError.code === 'PGRST202'
+              ? 'Apply the numeric game age eligibility migration in Supabase, then refresh.'
+              : `Could not check your private age profile: ${playerAgeError.message}`,
+          )
+          return
+        }
+        hasSavedBirthDate = Number.isInteger(playerAge)
+        $('rallyProfileBirthDate').value = hasSavedBirthDate
+          ? ''
+          : user.user_metadata?.birth_date || ''
         profileIsAdmin = profile?.is_admin === true
-        setProfileMode(profileIsAdmin, ageGroup, gender)
+        setProfileMode(profileIsAdmin, hasSavedBirthDate, gender)
       } else {
         $('rallyAuthForm').hidden = false
         $('rallyProfileForm').hidden = true
@@ -279,13 +285,18 @@ if (!supabase) {
 
       if (mode === 'signup') {
         const displayName = $('rallyAuthName').value.trim()
-        const ageGroup = $('rallyAuthAge').value
+        const birthDate = $('rallyAuthBirthDate').value
+        const age = window.rallyAge?.getAgeOnDate(birthDate)
+        if (!Number.isInteger(age) || age < 13 || age > 19) {
+          throw new Error('RALLY currently supports players aged 13 to 19.')
+        }
+        const ageGroup = window.rallyAge.getLegacyAgeGroup(age)
         const gender = $('rallyAuthGender').value
         result = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { display_name: displayName, age_group: ageGroup, gender }
+            data: { display_name: displayName, age_group: ageGroup, gender, birth_date: birthDate }
           }
         })
 
@@ -305,14 +316,44 @@ if (!supabase) {
 
       const user = result.data.user
       if (user) {
+        const { data: savedAge, error: ageStatusError } =
+          await supabase.rpc('get_my_rally_player_age')
+        if (ageStatusError) throw ageStatusError
+        hasSavedBirthDate = Number.isInteger(savedAge)
+        const birthDate = user.user_metadata?.birth_date
+        if (!hasSavedBirthDate && birthDate) {
+          const { error: birthDateError } = await supabase.rpc(
+            'save_my_rally_player_birth_date',
+            { p_birth_date: birthDate },
+          )
+          if (birthDateError) throw birthDateError
+          hasSavedBirthDate = true
+        }
+        if (hasSavedBirthDate && birthDate) {
+          const { error: metadataError } = await supabase.auth.updateUser({
+            data: { ...user.user_metadata, birth_date: null },
+          })
+          if (metadataError) throw metadataError
+        }
+
         const displayName =
           user.user_metadata?.display_name || user.email || 'RALLY player'
-        const profile = { id: user.id, display_name: displayName }
-        if (user.user_metadata?.age_group) {
-          profile.age_group = user.user_metadata.age_group
-        }
-        if (user.user_metadata?.gender) {
-          profile.gender = user.user_metadata.gender
+        const { data: existingProfile, error: existingProfileError } =
+          await supabase
+            .from('profiles')
+            .select('age_group,gender,is_admin')
+            .eq('id', user.id)
+            .maybeSingle()
+        if (existingProfileError) throw existingProfileError
+        const profile = {
+          id: user.id,
+          display_name: displayName,
+          age_group: existingProfile?.age_group ||
+            user.user_metadata?.age_group ||
+            (Number.isInteger(savedAge)
+              ? window.rallyAge.getLegacyAgeGroup(savedAge)
+              : null),
+          gender: existingProfile?.gender || user.user_metadata?.gender || null,
         }
 
         const { error: profileError } = await supabase
@@ -322,20 +363,20 @@ if (!supabase) {
         if (profileError) throw profileError
         const { data: savedProfile, error: savedProfileError } = await supabase
           .from('profiles')
-          .select('is_admin')
+          .select('age_group,gender,is_admin')
           .eq('id', user.id)
           .maybeSingle()
         if (savedProfileError) throw savedProfileError
 
         profileIsAdmin = savedProfile?.is_admin === true
-        const ageGroup = user.user_metadata?.age_group || ''
-        const gender = user.user_metadata?.gender || ''
-        setProfileMode(profileIsAdmin, ageGroup, gender)
+        profileAgeGroup = savedProfile?.age_group || ''
+        const gender = savedProfile?.gender || ''
+        setProfileMode(profileIsAdmin, hasSavedBirthDate, gender)
         $('rallyAuthTitle').textContent = 'Welcome to RALLY!'
         $('rallyAuthSubtitle').textContent = displayName
         $('rallyAuthForm').hidden = true
         $('rallyProfileForm').hidden = false
-        $('rallyProfileAge').value = ageGroup
+        $('rallyProfileBirthDate').value = ''
         $('rallyProfileGender').value = gender
         $('rallyAuthSwitch').dataset.action = 'signout'
         $('rallyAuthSwitch').textContent = 'Sign out'
@@ -362,12 +403,33 @@ if (!supabase) {
       const user = data.session?.user
       if (!user) throw new Error('Sign in before saving your profile.')
 
+      const birthDate = $('rallyProfileBirthDate').value
+      let newAgeGroup = ''
+      if (birthDate && !hasSavedBirthDate) {
+        const age = window.rallyAge?.getAgeOnDate(birthDate)
+        if (!Number.isInteger(age) || age < 13 || age > 19) {
+          throw new Error('RALLY currently supports players aged 13 to 19.')
+        }
+        const { error: birthDateError } = await supabase.rpc(
+          'save_my_rally_player_birth_date',
+          { p_birth_date: birthDate },
+        )
+        if (birthDateError) throw birthDateError
+        hasSavedBirthDate = true
+        newAgeGroup = window.rallyAge.getLegacyAgeGroup(age)
+        if (!profileAgeGroup) profileAgeGroup = newAgeGroup
+        const { error: metadataError } = await supabase.auth.updateUser({
+          data: { ...user.user_metadata, birth_date: null },
+        })
+        if (metadataError) throw metadataError
+      }
+
       const { error } = await supabase
         .from('profiles')
         .upsert({
           id: user.id,
           display_name: user.user_metadata?.display_name || user.email || 'RALLY player',
-          age_group: $('rallyProfileAge').value || null,
+          age_group: profileAgeGroup || null,
           gender: $('rallyProfileGender').value || null
         })
       if (error) throw error
@@ -375,16 +437,18 @@ if (!supabase) {
       window.dispatchEvent(new Event('rally-profile-updated'))
       const { error: metadataError } = await supabase.auth.updateUser({
         data: {
-          age_group: $('rallyProfileAge').value || null,
-          gender: $('rallyProfileGender').value || null
+          age_group: profileAgeGroup || null,
+          gender: $('rallyProfileGender').value || null,
+          birth_date: null
         }
       })
       if (metadataError) throw metadataError
       setProfileMode(
         profileIsAdmin,
-        $('rallyProfileAge').value,
+        hasSavedBirthDate,
         $('rallyProfileGender').value,
       )
+      $('rallyProfileBirthDate').value = ''
       message('Your profile has been saved.')
     } catch (error) {
       message(error.message || 'Could not save your profile. Please try again.')
@@ -400,6 +464,8 @@ if (!supabase) {
       $('rallyProfileForm').hidden = true
       $('rallyAuthSwitch').dataset.action = 'switch'
       profileIsAdmin = false
+      hasSavedBirthDate = false
+      profileAgeGroup = ''
       setMode('signin')
     }
   })
