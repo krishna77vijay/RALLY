@@ -565,12 +565,27 @@ function App() {
 
             {filteredGames.length === 0 ? (
               <div className="empty">
-                <div style={{ fontSize: 32, marginBottom: 12 }}>🔎</div>
-                <h3>No games found</h3>
-                <p>Try changing your filters or create a game of your own.</p>
-                <button className="secondary" onClick={() => { setSport('All sports'); setSkill('Any level'); setSearch('') }}>
-                  Clear filters
-                </button>
+                <div style={{ fontSize: 32, marginBottom: 12 }}>
+                  {games.length === 0 ? '🏟️' : '🔎'}
+                </div>
+                <h3>{games.length === 0 ? 'No games available' : 'No games found'}</h3>
+                <p>
+                  {games.length === 0
+                    ? 'There are no games available right now. Create one to get started.'
+                    : 'Try changing your filters or create a game of your own.'}
+                </p>
+                {games.length === 0 ? (
+                  <button className="primary" onClick={() => setShowCreate(true)}>
+                    + Create a game
+                  </button>
+                ) : (
+                  <button
+                    className="secondary"
+                    onClick={() => { setSport('All sports'); setSkill('Any level'); setSearch('') }}
+                  >
+                    Clear filters
+                  </button>
+                )}
               </div>
             ) : (
               <div className="cards">

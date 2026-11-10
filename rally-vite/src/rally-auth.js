@@ -92,14 +92,13 @@ if (!supabase) {
             <option value="" disabled selected>Select your age group</option>
             <option value="13–15">13–15</option>
             <option value="15–17">15–17</option>
-            <option value="13–18">13–18</option>
             <option value="17–19">17–19</option>
           </select>
           <label for="rallyAuthGender">Gender</label>
           <select id="rallyAuthGender">
             <option value="" disabled selected>Select your gender</option>
-            <option value="girl">Girl</option>
-            <option value="boy">Boy</option>
+            <option value="girl">Female</option>
+            <option value="boy">Male</option>
             <option value="prefer_not_to_say">Prefer not to say</option>
           </select>
           <p class="rally-auth-hint">Your age group and gender appear on your player profile and determine which games you can see. Choose “Prefer not to say” to see games open to all genders.</p>
@@ -120,14 +119,13 @@ if (!supabase) {
           <option value="" disabled>Select your age group</option>
           <option value="13–15">13–15</option>
           <option value="15–17">15–17</option>
-          <option value="13–18">13–18</option>
           <option value="17–19">17–19</option>
         </select>
         <label for="rallyProfileGender">Gender</label>
         <select id="rallyProfileGender" required>
           <option value="" disabled>Select your gender</option>
-          <option value="girl">Girl</option>
-          <option value="boy">Boy</option>
+          <option value="girl">Female</option>
+          <option value="boy">Male</option>
           <option value="prefer_not_to_say">Prefer not to say</option>
         </select>
         <button id="rallyProfileSave" type="submit">Save profile</button>
