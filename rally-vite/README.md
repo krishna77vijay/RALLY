@@ -2,7 +2,7 @@
 
 ## Expired game cleanup
 
-Apply `supabase/migrations/20261110000000_fix_expired_game_cleanup_schedule.sql` to the Supabase project to ensure the `pg_cron` cleanup job is installed. It deletes games 12 hours after their scheduled start, and removes completed games sooner.
+Apply `supabase/migrations/20261110001000_game_history_visibility_and_cleanup.sql` to the Supabase project. Admins can view past games; hosts and joined players can view them and confirm completion for 24 hours after the scheduled start. Every 10 minutes, the cleanup job deletes games older than 24 hours only when fewer than 60% of the host and joined players confirmed completion. Games meeting that threshold remain available to admins.
 
 This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
