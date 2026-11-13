@@ -752,6 +752,170 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
 #cards > .empty { grid-column: 1 / -1; }
 </style>
 
+<style id="rally-create-form-layout">
+#createBackdrop .modal{
+  width:min(760px,100%);
+  max-height:min(92vh,980px);
+  overflow-y:auto;
+  padding:clamp(20px,3vw,34px);
+  border-radius:20px;
+  scrollbar-color:#315879 #081d37;
+}
+#createBackdrop .create-form-intro{
+  max-width:540px;
+  margin:8px 0 24px;
+  color:#b9cde0;
+  font-size:14px;
+}
+#createForm{display:grid;gap:16px}
+#createForm .create-form-section{
+  display:grid;
+  gap:14px;
+  padding:20px;
+  border:1px solid rgba(115,167,197,.18);
+  border-radius:16px;
+  background:linear-gradient(145deg,rgba(17,48,75,.72),rgba(8,29,51,.7));
+}
+#createForm .create-section-heading{
+  display:flex;
+  align-items:flex-start;
+  gap:12px;
+  padding-bottom:12px;
+  border-bottom:1px solid rgba(115,167,197,.15);
+}
+#createForm .create-section-number{
+  display:grid;
+  place-items:center;
+  width:30px;
+  height:30px;
+  flex:0 0 30px;
+  border:1px solid rgba(24,200,239,.32);
+  border-radius:9px;
+  background:rgba(24,200,239,.1);
+  color:#83e8fa;
+  font-size:11px;
+  font-weight:900;
+}
+#createForm .create-section-heading h3{
+  margin:1px 0 3px;
+  color:#f3f8ff;
+  font-size:15px;
+  font-weight:850;
+}
+#createForm .create-section-heading p{
+  margin:0;
+  color:#9db7cb;
+  font-size:11px;
+  line-height:1.5;
+}
+#createForm .create-fields-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:0 18px;
+}
+#createForm .field{min-width:0;margin:0 0 14px}
+#createForm .create-fields-grid .field{margin-bottom:14px}
+#createForm .field>span,
+#createForm .create-age-label{
+  display:block;
+  margin-bottom:7px;
+  color:#c1d5e6;
+  font-size:10px;
+  font-weight:850;
+  letter-spacing:.65px;
+}
+#createForm .field>span small,
+#createForm .create-age-label small{
+  color:#86a7bf;
+  font-size:9px;
+  font-weight:700;
+  letter-spacing:0;
+}
+#createForm .field input,
+#createForm .field select{
+  min-height:46px;
+  padding:11px 13px;
+  border:1px solid rgba(127,170,197,.28);
+  border-radius:10px;
+  background:#081a30;
+  color:#f3f8ff;
+  font-size:13px;
+  transition:border-color .16s,box-shadow .16s;
+}
+#createForm .field input:focus,
+#createForm .field select:focus{
+  border-color:#18c8ef;
+  outline:none;
+  box-shadow:0 0 0 3px rgba(24,200,239,.13);
+}
+#createForm .field input::placeholder{color:#7e9ab2}
+#createForm .field .field-hint{
+  display:block;
+  margin-top:7px;
+  color:#91abc1;
+  font-size:10px;
+  line-height:1.5;
+}
+#createForm .create-field-full{grid-column:1/-1}
+#createForm .create-age-range{
+  padding:12px 14px 0;
+  border:1px solid rgba(115,167,197,.14);
+  border-radius:12px;
+  background:rgba(5,22,40,.35);
+}
+#createForm .create-age-grid{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
+  align-items:center;
+  gap:12px;
+}
+#createForm .create-age-grid .field{margin-bottom:12px}
+#createForm .create-age-divider{
+  align-self:center;
+  margin-top:-12px;
+  color:#83a2ba;
+  font-size:11px;
+}
+#createForm .create-form-actions{
+  position:sticky;
+  bottom:-1px;
+  z-index:2;
+  display:flex;
+  gap:10px;
+  margin:0;
+  padding:14px 0 2px;
+  border-top:1px solid rgba(115,167,197,.2);
+  background:linear-gradient(180deg,rgba(8,29,55,.82),#081d37 32%);
+}
+#createForm .create-form-actions button{
+  min-height:46px;
+  border-radius:11px;
+  font-size:13px;
+}
+#createForm .create-form-actions .secondary{
+  flex:0 0 30%;
+  border:1px solid rgba(127,170,197,.22);
+}
+#createForm .create-form-actions .primary{flex:1}
+#createBackdrop #createStatus{margin-top:14px}
+body.rally-route-create #createBackdrop .modal,
+body.create-game-view #createBackdrop .modal{
+  max-height:none;
+  overflow:visible;
+}
+@media(max-width:600px){
+  #createBackdrop .modal{padding:18px 14px;border-radius:16px}
+  #createForm{gap:12px}
+  #createForm .create-form-section{gap:12px;padding:15px}
+  #createForm .create-fields-grid{grid-template-columns:1fr;gap:0}
+  #createForm .create-field-full{grid-column:auto}
+  #createForm .create-form-actions .secondary{flex-basis:34%}
+}
+@media(prefers-reduced-motion:reduce){
+  #createForm .field input,#createForm .field select{transition:none}
+}
+</style>
+
 </head>
 
 <body class="find-game-view">
@@ -1234,25 +1398,56 @@ body.rally-route-create #createBackdrop .modalhead .eyebrow,body.create-game-vie
 <div class="backdrop" id="createBackdrop" aria-labelledby="createTitle">
   <div class="modal">
     <div class="modalhead"><div><div class="eyebrow">Bring players together</div><h2 id="createTitle">Create a game</h2></div><button class="close" id="closeCreate" aria-label="Close">×</button></div>
-    <p>Set up a game, choose how players can join, and publish it to RALLY.</p>
+    <p class="create-form-intro">A few details are all it takes to bring your next game together.</p>
     <form id="createForm">
-      <label class="field"><span>GAME NAME</span><input id="newTitle" required maxlength="70" placeholder="e.g. Casual basketball after school"></label>
-      <div class="create-fields-grid">
-        <label class="field"><span>SPORT</span><select id="newSport" required><option>Basketball</option><option>Football</option><option>Badminton</option><option>Tennis</option><option>Pickleball</option><option>Cricket</option><option>Volleyball</option></select></label>
-        <label class="field"><span>SKILL LEVEL</span><select id="newSkill" required><option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>All levels</option></select></label>
-        <label class="field"><span>DATE</span><input id="newDate" type="date" required></label>
-        <label class="field"><span>START TIME</span><input id="newTime" type="time" required></label>
-        <label class="field"><span>LOCATION / VENUE</span><input id="newVenue" type="text" required maxlength="160" autocomplete="street-address" aria-describedby="createVenuePrivacyHint" placeholder="e.g. Riverside Community Sports Centre"><small class="field-hint" id="createVenuePrivacyHint">Use a public venue. This location is shown to players; never enter your home address or private contact details.</small></label>
-        <label class="field"><span>VENUE TYPE</span><select id="newVenueType" required><option value="" disabled selected>Choose a venue type</option><option value="school">School / school court</option><option value="community_park">Community park</option><option value="sports_centre">Sports centre</option><option value="public_court">Public outdoor court</option><option value="indoor_gym">Indoor gym</option><option value="community_centre">Community centre</option><option value="other">Other</option></select></label>
-      </div>
-      <label class="field"><span>PLAYER SPOTS (HOST NOT COUNTED)</span><select id="newSpots"><option value="1">1 spot</option><option value="2" selected>2 spots</option><option value="3">3 spots</option><option value="4">4 spots</option><option value="5">5 spots</option><option value="6">6 spots</option><option value="7">7 spots</option><option value="8">8 spots</option><option value="9">9 spots</option><option value="10">10 spots</option></select></label>
-      <label class="field"><span>WHO CAN SEE THIS GAME?</span><select id="newVisibility" aria-describedby="newVisibilityHint"><option value="public">Anyone on RALLY</option><option value="friends">Your friends only</option><option value="invitees">Only friends I invite</option></select><small class="field-hint" id="newVisibilityHint">Anyone can find this game.</small></label>
-      <label class="field"><span>JOIN METHOD</span><select id="newJoinMode" aria-describedby="newJoinModeHint"><option value="approval" selected>Players request; I approve them</option><option value="open">Players join instantly</option></select><small class="field-hint" id="newJoinModeHint">You’ll review each request before the player takes a spot.</small></label>
-      <label class="field"><span>MINIMUM PLAYER AGE</span><select id="newMinAge" required><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option></select></label>
-      <label class="field"><span>MAXIMUM PLAYER AGE</span><select id="newMaxAge" required><option>13</option><option>14</option><option selected>15</option><option>16</option><option>17</option><option>18</option><option>19</option></select><small class="field-hint">Both age limits are inclusive.</small></label>
-      <label class="field"><span>GENDER ELIGIBILITY</span><select id="newGenderEligibility" required><option value="all">All genders</option><option value="girl">Female</option><option value="boy">Male</option></select><small class="field-hint">Only players whose age and gender match can see or join this game.</small></label>
-      <label class="field"><span>GAME NOTES (OPTIONAL)</span><input id="newDesc" maxlength="180" placeholder="What should players know?"></label>
-      <div class="mactions"><button type="button" class="secondary" id="cancelCreate">Cancel</button><button type="submit" class="primary">Publish game</button></div>
+      <section class="create-form-section" aria-labelledby="createBasicsTitle">
+        <div class="create-section-heading"><span class="create-section-number">01</span><div><h3 id="createBasicsTitle">Game basics</h3><p>Give players the quick details.</p></div></div>
+        <label class="field create-field-full"><span>GAME NAME</span><input id="newTitle" required maxlength="70" placeholder="e.g. Casual basketball after school"></label>
+        <div class="create-fields-grid">
+          <label class="field"><span>SPORT</span><select id="newSport" required><option>Basketball</option><option>Football</option><option>Badminton</option><option>Tennis</option><option>Pickleball</option><option>Cricket</option><option>Volleyball</option></select></label>
+          <label class="field"><span>SKILL LEVEL</span><select id="newSkill" required><option>Beginner</option><option>Intermediate</option><option>Advanced</option><option>All levels</option></select></label>
+        </div>
+      </section>
+
+      <section class="create-form-section" aria-labelledby="createWhenWhereTitle">
+        <div class="create-section-heading"><span class="create-section-number">02</span><div><h3 id="createWhenWhereTitle">When &amp; where</h3><p>Choose a time and a public place to play.</p></div></div>
+        <div class="create-fields-grid">
+          <label class="field"><span>DATE</span><input id="newDate" type="date" required></label>
+          <label class="field"><span>START TIME</span><input id="newTime" type="time" required></label>
+          <label class="field create-field-full"><span>LOCATION / VENUE</span><input id="newVenue" type="text" required maxlength="160" autocomplete="street-address" aria-describedby="createVenuePrivacyHint" placeholder="e.g. Riverside Community Sports Centre"><small class="field-hint" id="createVenuePrivacyHint">Use a public or supervised venue. Players can see this location; never enter your home address or private contact details.</small></label>
+          <label class="field create-field-full"><span>VENUE TYPE</span><select id="newVenueType" required><option value="" disabled selected>Choose a venue type</option><option value="school">School / school court</option><option value="community_park">Community park</option><option value="sports_centre">Sports centre</option><option value="public_court">Public outdoor court</option><option value="indoor_gym">Indoor gym</option><option value="community_centre">Community centre</option><option value="other">Other</option></select></label>
+        </div>
+      </section>
+
+      <section class="create-form-section" aria-labelledby="createPlayersTitle">
+        <div class="create-section-heading"><span class="create-section-number">03</span><div><h3 id="createPlayersTitle">Players</h3><p>Set the group size and who can join.</p></div></div>
+        <div class="create-fields-grid">
+          <label class="field"><span>PLAYER SPOTS <small>(HOST NOT COUNTED)</small></span><select id="newSpots"><option value="1">1 spot</option><option value="2" selected>2 spots</option><option value="3">3 spots</option><option value="4">4 spots</option><option value="5">5 spots</option><option value="6">6 spots</option><option value="7">7 spots</option><option value="8">8 spots</option><option value="9">9 spots</option><option value="10">10 spots</option></select></label>
+          <label class="field"><span>GENDER ELIGIBILITY</span><select id="newGenderEligibility" required><option value="all">All genders</option><option value="girl">Female</option><option value="boy">Male</option></select><small class="field-hint">Only players whose age and gender match can see or join this game.</small></label>
+        </div>
+        <div class="create-age-range">
+          <span class="create-age-label">PLAYER AGE RANGE <small>Inclusive</small></span>
+          <div class="create-age-grid">
+            <label class="field"><span>MINIMUM AGE</span><select id="newMinAge" required><option>13</option><option>14</option><option>15</option><option>16</option><option>17</option><option>18</option><option>19</option></select></label>
+            <span class="create-age-divider" aria-hidden="true">to</span>
+            <label class="field"><span>MAXIMUM AGE</span><select id="newMaxAge" required><option>13</option><option>14</option><option selected>15</option><option>16</option><option>17</option><option>18</option><option>19</option></select></label>
+          </div>
+        </div>
+      </section>
+
+      <section class="create-form-section" aria-labelledby="createAccessTitle">
+        <div class="create-section-heading"><span class="create-section-number">04</span><div><h3 id="createAccessTitle">Visibility &amp; joining</h3><p>Choose who finds your game and how they join.</p></div></div>
+        <div class="create-fields-grid">
+          <label class="field"><span>WHO CAN SEE THIS GAME?</span><select id="newVisibility" aria-describedby="newVisibilityHint"><option value="public">Anyone on RALLY</option><option value="friends">Your friends only</option><option value="invitees">Only friends I invite</option></select><small class="field-hint" id="newVisibilityHint">Anyone can find this game.</small></label>
+          <label class="field"><span>JOIN METHOD</span><select id="newJoinMode" aria-describedby="newJoinModeHint"><option value="approval" selected>Players request; I approve them</option><option value="open">Players join instantly</option></select><small class="field-hint" id="newJoinModeHint">You’ll review each request before the player takes a spot.</small></label>
+        </div>
+      </section>
+
+      <section class="create-form-section create-extra-section" aria-labelledby="createNotesTitle">
+        <div class="create-section-heading"><span class="create-section-number">05</span><div><h3 id="createNotesTitle">Anything else?</h3><p>Share helpful details with players (optional).</p></div></div>
+        <label class="field create-field-full"><span>GAME NOTES <small>(OPTIONAL)</small></span><input id="newDesc" maxlength="180" placeholder="What should players know?"></label>
+      </section>
+      <div class="mactions create-form-actions"><button type="button" class="secondary" id="cancelCreate">Cancel</button><button type="submit" class="primary">Publish game</button></div>
     </form>
     <div class="status" id="createStatus"></div>
   </div>
