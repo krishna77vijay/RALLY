@@ -1,5 +1,15 @@
 # React + TypeScript + Vite
 
+## Find games near me
+
+Apply `supabase/migrations/20261111000000_nearby_game_coordinates.sql` after the existing game eligibility and visibility migrations. It adds nullable venue coordinates and an authenticated nearby-search RPC. The RPC runs as the caller, so existing RLS visibility, age/gender eligibility, and admin rules remain in force. It uses a bounding-box candidate query followed by Haversine distance filtering and only returns games with valid coordinates.
+
+Set `VITE_GEOAPIFY_API_KEY` in the local Vite environment and the deployment environment, then restart/redeploy. This key is public in a browser app: restrict it in Geoapify to the exact production and development HTTP origins. Do not commit the key. Players must explicitly select either GPS or a manually searched public area; their coordinates remain in page memory only and are not included in analytics events.
+
+Hosts must geocode and explicitly confirm a matching public venue before publishing. Changing the venue invalidates its confirmation. Existing games are not automatically geocoded: rows without coordinates remain visible in normal game discovery but are excluded from nearby results. To plan a safe manual backfill, first inspect `select id, venue from public.games where latitude is null or longitude is null;`; validate each complete public venue with its host and Geoapify before updating coordinates. Do not infer coordinates from incomplete venue text.
+
+Nearby journey events are emitted as sanitized `rally:analytics` browser events and printed to the browser console for WK6 testing. Only method, radius, count, duration, outcome, and join mode are permitted event properties; exact coordinates and entered location text are never logged or stored.
+
 ## Expired game cleanup
 
 Apply `supabase/migrations/20261110001000_game_history_visibility_and_cleanup.sql` to the Supabase project. Admins can view past games; hosts and joined players can view them and confirm completion for 24 hours after the scheduled start. Every 10 minutes, the cleanup job deletes games older than 24 hours only when fewer than 60% of the host and joined players confirmed completion. Games meeting that threshold remain available to admins.
