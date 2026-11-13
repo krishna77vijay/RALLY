@@ -1,5 +1,6 @@
 import {
   isValidCoordinates,
+  selectConfidentGeocodeResult,
   sortNearbyGames,
 } from './rally-nearby-utils.js'
 
@@ -7,6 +8,8 @@ const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY?.trim() || ''
 const VERIFIED_VENUES = new Map()
 const pendingNearbyJoinIds = new Map()
 const RADIUS_OPTIONS = [5, 10, 25]
+const LOCATION_PROMPT_DELAY_MS = 150_000
+const SAVED_LOCATION_KEY = 'rally-nearby-location-v1'
 const eventProperties = new Set([
   'method',
   'radiusKm',
@@ -21,6 +24,66 @@ function normalizeVenue(venue) {
   return venue.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
+function getSavedLocationKey(userId) {
+  return `${SAVED_LOCATION_KEY}:${userId}`
+}
+
+function readSavedLocation(userId) {
+  try {
+    const saved = window.localStorage.getItem(getSavedLocationKey(userId))
+    if (!saved) return null
+    const location = JSON.parse(saved)
+    if (
+      location?.version !== 1 ||
+      !isValidCoordinates(location.latitude, location.longitude) ||
+      !RADIUS_OPTIONS.includes(location.radiusKm) ||
+      !['gps', 'manual'].includes(location.method) ||
+      typeof location.label !== 'string'
+    ) {
+      console.error('RALLY saved nearby location is invalid; ignoring the stored value.')
+      return null
+    }
+    return location
+  } catch (error) {
+    console.error('RALLY could not read the saved nearby location.', error)
+    return null
+  }
+}
+
+function saveLocationOnDevice(userId, origin, label, method, radiusKm) {
+  if (!userId || !isValidCoordinates(origin?.latitude, origin?.longitude)) return
+  const savedLocation = {
+    version: 1,
+    latitude: Number(origin.latitude.toFixed(3)),
+    longitude: Number(origin.longitude.toFixed(3)),
+    label,
+    method,
+    radiusKm,
+  }
+  try {
+    window.localStorage.setItem(
+      getSavedLocationKey(userId),
+      JSON.stringify(savedLocation),
+    )
+    updateSavedLocationNotice(savedLocation)
+  } catch (error) {
+    console.error('RALLY could not save the nearby location on this device.', error)
+    setNearbyStatus(
+      'Nearby games loaded, but this browser could not save the location for next time.',
+      'error',
+    )
+  }
+}
+
+function updateSavedLocationNotice(location) {
+  if (!nearbyControls) return
+  nearbyControls.forget.hidden = !location
+  nearbyControls.saved.textContent = location
+    ? 'A rounded, approximate location is saved on this device for your next sign-in.'
+    : ''
+  nearbyControls.saved.hidden = !location
+}
+
 let selectedOrigin = null
 let selectedLocationLabel = ''
 let selectedMethod = null
@@ -29,6 +92,11 @@ let activeRadiusKm = null
 let nearbyControls = null
 let venueControls = null
 let searchInProgress = false
+let authenticatedUserId = null
+let joinedGameState = null
+let locationPromptTimer = null
+let locationPromptDialog = null
+let locationPromptShown = false
 
 function trackEvent(event, properties = {}) {
   const safeProperties = Object.fromEntries(
@@ -85,6 +153,7 @@ async function geocodeLocation(query) {
         label: typeof properties?.formatted === 'string' ? properties.formatted : '',
         latitude: Number(properties?.lat),
         longitude: Number(properties?.lon),
+        confidence: Number(properties?.rank?.confidence),
       }
     })
     .filter(
@@ -184,6 +253,15 @@ async function searchNearbyGames(
     selectedMethod = method
     setSelectedLocation(locationLabel)
     nearbyControls.radius.value = String(radiusKm)
+    if (nearbyControls.remember.checked && authenticatedUserId) {
+      saveLocationOnDevice(
+        authenticatedUserId,
+        origin,
+        locationLabel,
+        method,
+        radiusKm,
+      )
+    }
     const durationMs = Math.round(performance.now() - startedAt)
     trackEvent('nearby_games_loaded', {
       method,
@@ -199,11 +277,6 @@ async function searchNearbyGames(
         'empty',
       )
     } else {
-      trackEvent('location_search_failed', {
-        method: 'gps',
-        success: false,
-        failureReason: 'location_error',
-      })
       setNearbyStatus(
         `${results.length} nearby ${results.length === 1 ? 'game' : 'games'} found. Approximate distances are shown on the cards.`,
         'success',
@@ -252,8 +325,11 @@ function setupNearbyControls() {
   section.setAttribute('aria-labelledby', 'nearby-title')
   section.innerHTML = `
     <h3 id="nearby-title">FIND GAMES NEAR YOU</h3>
-    <p class="nearby-copy">Use your location to find eligible games within this radius. It is used only for this search and is never saved or shown to other players. Or search a public area; its text is sent to Geoapify to find matching locations.</p>
+    <p class="nearby-copy">Use your location to find eligible games within this radius. It is never shown to other players. If you choose to remember it, only a rounded approximate location is saved on this device. Or search a public area; its text is sent to Geoapify to find matching locations.</p>
     <button class="primary nearby-gps" type="button">Find games near me</button>
+    <label class="nearby-remember"><input class="nearby-remember-checkbox" type="checkbox"><span>Remember this approximate location on this device for my next sign-in</span></label>
+    <p class="nearby-saved" role="status" hidden></p>
+    <button class="secondary nearby-forget" type="button" hidden>Forget saved location</button>
     <div class="nearby-selected" role="status" hidden></div>
     <label class="nearby-label" for="nearby-radius">DISTANCE</label>
     <select class="nearby-radius" id="nearby-radius">
@@ -284,6 +360,9 @@ function setupNearbyControls() {
     manualSearch: section.querySelector('.nearby-manual-search'),
     choices: section.querySelector('.nearby-choices'),
     confirm: section.querySelector('.nearby-confirm'),
+    remember: section.querySelector('.nearby-remember-checkbox'),
+    saved: section.querySelector('.nearby-saved'),
+    forget: section.querySelector('.nearby-forget'),
     selected: section.querySelector('.nearby-selected'),
     clear: section.querySelector('.nearby-clear'),
     status: section.querySelector('.nearby-status'),
@@ -453,15 +532,38 @@ function setupNearbyControls() {
     setSelectedLocation('')
     nearbyControls.choices.hidden = true
     nearbyControls.query.value = ''
-    trackEvent('location_search_failed', {
-      method: 'gps',
-      success: false,
-      failureReason: 'location_error',
-    })
     setNearbyStatus('Nearby search cleared.', 'success')
     window.dispatchEvent(
       new CustomEvent('rally:nearby-results', { detail: { active: false } }),
     )
+  })
+
+  nearbyControls.forget.addEventListener('click', () => {
+    if (!authenticatedUserId) return
+    try {
+      window.localStorage.removeItem(getSavedLocationKey(authenticatedUserId))
+      updateSavedLocationNotice(null)
+      nearbyControls.remember.checked = false
+      setNearbyStatus('Saved location forgotten on this device.', 'success')
+      cancelLocationPrompt()
+      window.setTimeout(updateLocationPromptTimer, 0)
+    } catch (error) {
+      console.error('RALLY could not remove the saved nearby location.', error)
+      setNearbyStatus('Could not forget the saved location in this browser.', 'error')
+    }
+  })
+  nearbyControls.remember.addEventListener('change', () => {
+    if (nearbyControls.remember.checked || !authenticatedUserId) return
+    try {
+      window.localStorage.removeItem(getSavedLocationKey(authenticatedUserId))
+      updateSavedLocationNotice(null)
+      setNearbyStatus('Saved location will be forgotten on this device.', 'success')
+      cancelLocationPrompt()
+      window.setTimeout(updateLocationPromptTimer, 0)
+    } catch (error) {
+      console.error('RALLY could not remove the saved nearby location.', error)
+      setNearbyStatus('Could not forget the saved location in this browser.', 'error')
+    }
   })
 }
 
@@ -472,7 +574,8 @@ function setupVenueVerification() {
   const control = document.createElement('div')
   control.className = 'venue-geocode-control'
   control.innerHTML = `
-    <button class="secondary venue-geocode-button" type="button">Verify public venue</button>
+    <p>RALLY will check this venue with Geoapify when you publish. If it cannot confidently match it, you can choose the correct result below.</p>
+    <button class="secondary venue-geocode-button" type="button">Check venue now</button>
     <select class="venue-geocode-choices" aria-label="Choose the matching venue" hidden></select>
     <button class="secondary venue-geocode-confirm" type="button" disabled>Confirm venue</button>
     <p class="venue-geocode-status" role="status" aria-live="polite"></p>
@@ -491,7 +594,7 @@ function setupVenueVerification() {
     VERIFIED_VENUES.delete(normalizeVenue(venueInput.value))
     venueControls.confirm.disabled = true
     venueControls.choices.hidden = true
-    venueControls.status.textContent = 'Address changed. Verify it again before publishing.'
+    venueControls.status.textContent = 'Address changed. It will be checked when you publish.'
   })
   venueControls.verify.addEventListener('click', async () => {
     const venue = venueInput.value.trim()
@@ -541,6 +644,58 @@ function setupVenueVerification() {
   })
 }
 
+async function resolveVenueCoordinates(venue) {
+  if (typeof venue !== 'string' || venue.trim().length < 3) {
+    throw new Error('Enter a complete public venue address.')
+  }
+  const key = normalizeVenue(venue)
+  const confirmedVenue = VERIFIED_VENUES.get(key)
+  if (confirmedVenue) return confirmedVenue
+
+  if (venueControls) {
+    venueControls.status.textContent = 'Checking this venue with Geoapify…'
+    venueControls.choices.hidden = true
+    venueControls.confirm.disabled = true
+  }
+
+  try {
+    const locations = await geocodeLocation(venue)
+    if (venueControls && normalizeVenue(venueControls.input.value) !== key) {
+      throw new Error('The venue changed while it was being checked. Publish again to verify the updated address.')
+    }
+
+    const match = selectConfidentGeocodeResult(locations)
+    if (!match) {
+      if (venueControls) {
+        venueControls.locations = locations
+        showVenueCandidates(venueControls.choices, locations)
+        venueControls.status.textContent = locations.length
+          ? 'Geoapify found multiple or uncertain matches. Choose the correct venue and confirm it, then publish again.'
+          : 'Geoapify could not find this venue. Correct the address and retry.'
+      }
+      throw new Error(
+        locations.length
+          ? 'Geoapify could not confidently identify one venue. Choose the correct result, confirm it, and publish again.'
+          : 'Geoapify could not find this venue. Correct the public venue address and try again.',
+      )
+    }
+
+    const coordinates = {
+      latitude: match.latitude,
+      longitude: match.longitude,
+    }
+    VERIFIED_VENUES.set(key, coordinates)
+    if (venueControls) {
+      venueControls.status.textContent = `Venue confirmed: ${match.label}`
+      venueControls.choices.hidden = true
+    }
+    return coordinates
+  } catch (error) {
+    if (venueControls) venueControls.status.textContent = error.message
+    throw error
+  }
+}
+
 function decorateNearbyCards(cardsRoot) {
   if (!activeNearbyResults || !cardsRoot) return
   const cards = [...cardsRoot.querySelectorAll('[data-card-id]')]
@@ -564,8 +719,11 @@ function decorateNearbyCards(cardsRoot) {
       distanceLabel.className = 'nearby-distance'
       details.append(distanceLabel)
     }
-    distanceLabel.textContent =
+    const formattedDistance =
       distance < 0.05 ? '<0.1 km away' : `${distance.toFixed(1)} km away`
+    if (distanceLabel.textContent !== formattedDistance) {
+      distanceLabel.textContent = formattedDistance
+    }
   }
 
   const currentOrder = [...cardsRoot.querySelectorAll('[data-card-id]')].filter(
@@ -580,7 +738,7 @@ function decorateNearbyCards(cardsRoot) {
 
   let empty = cardsRoot.querySelector('.nearby-empty')
   if (matches.length === 0) {
-    cardsRoot.querySelector('.empty')?.remove()
+    cardsRoot.querySelector('.empty:not(.nearby-empty)')?.remove()
     if (!empty) {
       empty = document.createElement('div')
       empty.className = 'empty nearby-empty'
@@ -620,16 +778,185 @@ function setupNearbyCardObserver() {
     })
     card.dataset.nearbyTracked = gameId
   })
-  cardsRoot.addEventListener('keydown', (event) => {
-    if (event.key !== 'Enter' && event.key !== ' ') return
-    const card = event.target.closest('[data-card-id]')
-    if (card && activeNearbyResults?.has(String(card.dataset.cardId))) {
-      trackEvent('nearby_game_opened', {
-        method: selectedMethod || 'manual',
-        radiusKm: activeRadiusKm,
+}
+
+function cancelLocationPrompt() {
+  if (locationPromptTimer !== null) {
+    window.clearTimeout(locationPromptTimer)
+    locationPromptTimer = null
+  }
+  if (locationPromptDialog) locationPromptDialog.hidden = true
+}
+
+function isFindGameRouteActive() {
+  return (
+    document.body.classList.contains('rally-route-find') ||
+    document.body.classList.contains('find-game-view')
+  )
+}
+
+function ensureLocationPrompt() {
+  if (locationPromptDialog || !nearbyControls) return
+
+  const overlay = document.createElement('div')
+  overlay.className = 'nearby-prompt-overlay'
+  overlay.hidden = true
+  overlay.innerHTML = `
+    <section class="nearby-prompt" role="dialog" aria-modal="true" aria-labelledby="nearby-prompt-title">
+      <div class="eyebrow">YOUR NEXT GAME</div>
+      <h2 id="nearby-prompt-title">Find games near you</h2>
+      <p>Choose to share your current location for this search, or find games by searching a public area. Location access is never requested unless you choose the button.</p>
+      <button class="primary nearby-prompt-gps" type="button">Find games near me</button>
+      <button class="secondary nearby-prompt-manual" type="button">Search a public area instead</button>
+      <button class="nearby-prompt-dismiss" type="button">Not now</button>
+    </section>
+  `
+  document.body.append(overlay)
+  locationPromptDialog = overlay
+
+  overlay.querySelector('.nearby-prompt-gps').addEventListener('click', () => {
+    overlay.hidden = true
+    if (!nearbyControls.root.closest('.layout')?.classList.contains('filters-open')) {
+      document.getElementById('toggleFilters')?.click()
+    }
+    nearbyControls.root.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    nearbyControls.gps.click()
+  })
+  overlay.querySelector('.nearby-prompt-manual').addEventListener('click', () => {
+    overlay.hidden = true
+    if (!nearbyControls.root.closest('.layout')?.classList.contains('filters-open')) {
+      document.getElementById('toggleFilters')?.click()
+    }
+    nearbyControls.query.focus({ preventScroll: true })
+    nearbyControls.query.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  })
+  overlay.querySelector('.nearby-prompt-dismiss').addEventListener('click', () => {
+    overlay.hidden = true
+    trackEvent('nearby_location_prompt_dismissed', { success: true })
+  })
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      overlay.hidden = true
+      trackEvent('nearby_location_prompt_dismissed', { success: true })
+    }
+  })
+}
+
+function updateLocationPromptTimer() {
+  if (
+    !authenticatedUserId ||
+    joinedGameState !== false ||
+    readSavedLocation(authenticatedUserId) ||
+    locationPromptShown ||
+    !isFindGameRouteActive()
+  ) {
+    cancelLocationPrompt()
+    return
+  }
+  if (locationPromptTimer !== null) return
+
+  locationPromptTimer = window.setTimeout(() => {
+    locationPromptTimer = null
+    if (
+      !authenticatedUserId ||
+      joinedGameState !== false ||
+      readSavedLocation(authenticatedUserId) ||
+      !isFindGameRouteActive()
+    ) {
+      updateLocationPromptTimer()
+      return
+    }
+    ensureLocationPrompt()
+    locationPromptDialog.hidden = false
+    locationPromptShown = true
+    trackEvent('nearby_location_prompt_shown', { success: true })
+  }, LOCATION_PROMPT_DELAY_MS)
+}
+
+async function updateAuthenticatedUser(userId) {
+  if (userId === authenticatedUserId) return
+
+  cancelLocationPrompt()
+  authenticatedUserId = userId || null
+  joinedGameState = null
+  locationPromptShown = false
+  selectedOrigin = null
+  selectedLocationLabel = ''
+  selectedMethod = null
+  activeNearbyResults = null
+  activeRadiusKm = null
+  setSelectedLocation('')
+
+  if (!authenticatedUserId) {
+    updateSavedLocationNotice(null)
+    nearbyControls.remember.checked = false
+    window.dispatchEvent(
+      new CustomEvent('rally:nearby-results', { detail: { active: false } }),
+    )
+    return
+  }
+
+  const savedLocation = readSavedLocation(authenticatedUserId)
+  updateSavedLocationNotice(savedLocation)
+  nearbyControls.remember.checked = Boolean(savedLocation)
+  if (savedLocation) {
+    nearbyControls.radius.value = String(savedLocation.radiusKm)
+    await searchNearbyGames(
+      savedLocation.method,
+      {
+        latitude: savedLocation.latitude,
+        longitude: savedLocation.longitude,
+      },
+      savedLocation.label,
+    )
+  } else {
+    updateLocationPromptTimer()
+  }
+}
+
+function setupLocationPromptLifecycle() {
+  const routeObserver = new MutationObserver(updateLocationPromptTimer)
+  routeObserver.observe(document.body, {
+    attributes: true,
+    attributeFilter: ['class'],
+  })
+
+  window.addEventListener('rally:games-joined-state', (event) => {
+    if (event.detail?.userId !== authenticatedUserId || !event.detail.loaded) return
+    joinedGameState = event.detail.hasJoined === true
+    if (joinedGameState) cancelLocationPrompt()
+    else updateLocationPromptTimer()
+  })
+  window.addEventListener('rally:game-joined', () => {
+    joinedGameState = true
+    cancelLocationPrompt()
+  })
+  window.addEventListener('rally-profile-updated', () => {
+    if (selectedOrigin && selectedMethod) {
+      searchNearbyGames(selectedMethod).catch((error) => {
+        console.error('RALLY nearby games could not refresh after the profile changed.', error)
       })
     }
   })
+
+  waitForSupabase()
+    .then(async (supabase) => {
+      const { data, error } = await supabase.auth.getSession()
+      if (error) throw error
+      await updateAuthenticatedUser(data.session?.user?.id || null)
+      supabase.auth.onAuthStateChange(
+        (_event, session) => {
+          window.setTimeout(() => {
+            updateAuthenticatedUser(session?.user?.id || null).catch((error) => {
+              console.error('RALLY could not restore its saved nearby location.', error)
+            })
+          }, 0)
+        },
+      )
+    })
+    .catch((error) => {
+      console.error('RALLY could not initialize nearby location preferences.', error)
+    })
 }
 
 function setupStyles() {
@@ -651,6 +978,17 @@ function setupStyles() {
     .nearby-status[data-state="success"]{color:#a9f0ff}
     .nearby-status[data-state="loading"]{color:#d8d0ff}
     .nearby-safety{margin-top:11px;color:#ffd166}
+    .nearby-remember{display:flex;align-items:flex-start;gap:8px;margin-top:12px;color:#b8cde2;font-size:10px;line-height:1.5}
+    .nearby-remember input{width:16px;height:16px;margin:0;accent-color:#08b9f0;flex:0 0 auto}
+    .nearby-saved{margin:8px 0 0;color:#a9f0ff;font-size:10px;line-height:1.5}
+    .nearby-forget{width:100%;margin-top:8px;padding:8px;font-size:10px}
+    .nearby-prompt-overlay{position:fixed;inset:0;z-index:10001;display:grid;place-items:center;padding:18px;background:#020b18d9;backdrop-filter:blur(5px)}
+    .nearby-prompt-overlay[hidden]{display:none}
+    .nearby-prompt{width:min(440px,100%);padding:24px;border:1px solid #315879;border-radius:18px;background:#0b2342;box-shadow:0 25px 80px #0008}
+    .nearby-prompt h2{margin:9px 0;color:#f3f8ff;font:800 30px 'Barlow Condensed',sans-serif}
+    .nearby-prompt p{color:#b8cde2;font-size:12px;line-height:1.7}
+    .nearby-prompt-gps,.nearby-prompt-manual{width:100%;margin-top:8px}
+    .nearby-prompt-dismiss{display:block;margin:12px auto 0;padding:7px 12px;border:0;color:#a9bed6;background:transparent;font-size:11px}
     .venue-geocode-control{grid-column:1/-1;margin:-4px 0 12px;padding:11px;border:1px solid #234365;border-radius:10px;background:#0b2342}
     .venue-geocode-control button{margin:0 6px 6px 0}
     .venue-geocode-control select{width:100%;min-height:42px;margin:5px 0 8px;padding:9px;border:1px solid #31516f;border-radius:8px;color:#f3f8ff;background:#071a35}
@@ -679,13 +1017,11 @@ setupNearbyControls()
 setupVenueVerification()
 setupNearbyCardObserver()
 setupNearbyEventBridge()
+setupLocationPromptLifecycle()
 
 window.rallyTrackEvent = trackEvent
 window.rallyNearbyGames = {
-  getVerifiedVenueCoordinates(venue) {
-    if (typeof venue !== 'string') return null
-    return VERIFIED_VENUES.get(normalizeVenue(venue)) || null
-  },
+  resolveVenueCoordinates,
   trackJoinClicked(game) {
     if (!game || !activeNearbyResults?.has(String(game.id))) return
     trackEvent('nearby_game_join_clicked', {
@@ -709,6 +1045,7 @@ window.rallyNearbyGames = {
     trackEvent('nearby_game_join_pending', properties)
   },
   trackJoinSuccess(game) {
+    window.dispatchEvent(new Event('rally:game-joined'))
     if (!game || !activeNearbyResults?.has(String(game.id))) return
     trackEvent('nearby_game_join_success', {
       method: selectedMethod || 'manual',
@@ -718,6 +1055,7 @@ window.rallyNearbyGames = {
     })
   },
   trackJoinedGames(gameIds) {
+    if (gameIds.length > 0) window.dispatchEvent(new Event('rally:game-joined'))
     for (const gameId of gameIds) {
       const key = String(gameId)
       const pendingSearch = pendingNearbyJoinIds.get(key)

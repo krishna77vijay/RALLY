@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import {
   haversineDistanceKm,
   isValidCoordinates,
+  selectConfidentGeocodeResult,
   sortNearbyGames,
 } from './rally-nearby-utils.js'
 
@@ -64,4 +65,24 @@ test('5 km, 10 km, and 25 km filters include only games in the chosen radius', (
     sortNearbyGames(games, origin, 25).map((game) => game.id),
     ['near', 'medium', 'far'],
   )
+})
+
+test('automatically selects only a confident, unambiguous Geoapify venue match', () => {
+  const confirmed = { label: 'Public Sports Centre', latitude: 51, longitude: 0, confidence: 0.92 }
+  assert.equal(
+    selectConfidentGeocodeResult([confirmed, { ...confirmed, confidence: 0.7 }]),
+    confirmed,
+  )
+  assert.equal(
+    selectConfidentGeocodeResult([
+      { ...confirmed, confidence: 0.91 },
+      { ...confirmed, label: 'Another venue', confidence: 0.86 },
+    ]),
+    null,
+  )
+  assert.equal(
+    selectConfidentGeocodeResult([{ ...confirmed, confidence: 0.74 }]),
+    null,
+  )
+  assert.equal(selectConfidentGeocodeResult([]), null)
 })

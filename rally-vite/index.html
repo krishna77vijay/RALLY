@@ -2082,15 +2082,17 @@ $("createForm").addEventListener("submit", async e => {
 
   if (button) button.disabled = true;
 
-  status.textContent = "Saving your game…";
+  status.textContent = "Checking venue with Geoapify…";
   status.classList.add("show");
 
   try {
-    const venueCoordinates =
-      window.rallyNearbyGames?.getVerifiedVenueCoordinates(venue);
-    if (!venueCoordinates) {
-      throw new Error("Verify the public venue and confirm the correct Geoapify result before publishing.");
+    const resolveVenueCoordinates =
+      window.rallyNearbyGames?.resolveVenueCoordinates;
+    if (typeof resolveVenueCoordinates !== "function") {
+      throw new Error("Venue checking is unavailable. Refresh RALLY and try again.");
     }
+    const venueCoordinates = await resolveVenueCoordinates(venue);
+    status.textContent = "Venue confirmed. Saving your game…";
 
     const gameInsert = {
       host_id: sessionData.session.user.id,
@@ -2421,9 +2423,11 @@ async function loadSavedGames() {
     if (currentUserId) {
       const { data: memberships, error: membershipError } =
         await supabase.rpc("get_my_joined_games");
+      let joinedGameStateLoaded = false;
       if (membershipError) {
         console.warn("RALLY: Could not load your joined-game status:", membershipError);
       } else {
+        joinedGameStateLoaded = true;
         for (const membership of (memberships || [])) {
           if (membership.game_id) joinedGameIds.add(String(membership.game_id));
         }
@@ -2438,6 +2442,13 @@ async function loadSavedGames() {
         }
       }
       window.rallyNearbyGames?.trackJoinedGames([...joinedGameIds]);
+      window.dispatchEvent(new CustomEvent("rally:games-joined-state", {
+        detail: {
+          userId: currentUserId,
+          loaded: joinedGameStateLoaded,
+          hasJoined: joinedGameIds.size > 0
+        }
+      }));
     }
 
     const nextGameIds = new Set((data || []).map(row => String(row.id)));

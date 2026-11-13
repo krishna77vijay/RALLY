@@ -1,4 +1,6 @@
 const EARTH_RADIUS_KM = 6371
+const MIN_GEOCODE_CONFIDENCE = 0.75
+const MIN_GEOCODE_CONFIDENCE_GAP = 0.1
 
 export function isValidCoordinates(latitude, longitude) {
   return (
@@ -9,6 +11,30 @@ export function isValidCoordinates(latitude, longitude) {
     longitude >= -180 &&
     longitude <= 180
   )
+}
+
+export function selectConfidentGeocodeResult(locations) {
+  if (!Array.isArray(locations) || locations.length === 0) return null
+
+  const ranked = locations
+    .filter(
+      (location) =>
+        location &&
+        isValidCoordinates(location.latitude, location.longitude) &&
+        Number.isFinite(location.confidence),
+    )
+    .sort((left, right) => right.confidence - left.confidence)
+
+  const best = ranked[0]
+  const second = ranked[1]
+  if (!best || best.confidence < MIN_GEOCODE_CONFIDENCE) return null
+  if (
+    second &&
+    best.confidence - second.confidence < MIN_GEOCODE_CONFIDENCE_GAP
+  ) {
+    return null
+  }
+  return best
 }
 
 export function haversineDistanceKm(from, to) {
