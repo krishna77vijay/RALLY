@@ -119,7 +119,9 @@ function getGeoapifyError(status) {
 
 async function geocodeLocation(query) {
   if (!GEOAPIFY_API_KEY) {
-    throw new Error('Location search is not configured. Add VITE_GEOAPIFY_API_KEY and reload RALLY.')
+    throw new Error(
+      'Venue lookup is not configured for this RALLY app. Add your Geoapify key as VITE_GEOAPIFY_API_KEY in rally-vite/.env.local, then restart the Vite server. Until configured, games cannot be published with verified venues.',
+    )
   }
   if (typeof query !== 'string' || query.trim().length < 3) {
     throw new Error('Enter at least three characters for a city, area, or public venue.')
